@@ -1,13 +1,13 @@
 # My Apply Calendar
 
-여러 회사 지원 현황과 공고/마감/발표/면접 일정을 리스트와 달력으로 관리하는 작은 정적 웹앱입니다.
+여러 회사 지원 현황과 공고, 마감, 발표, 면접 일정을 리스트와 달력으로 관리하는 작은 정적 웹앱입니다.
 
-## 지금 상태
+## 현재 상태
 
-- `index.html`을 브라우저에서 바로 열면 동작합니다.
-- 현재 데이터는 `localStorage`에 저장됩니다.
-- `docs/supabase-schema.sql`에 Supabase용 테이블과 RLS 정책 초안을 넣어두었습니다.
+- GitHub Pages에 바로 올릴 수 있는 정적 앱입니다.
+- 현재 데이터는 브라우저 `localStorage`에 저장됩니다.
 - 현재 상태는 사용자가 직접 입력하지 않고, 오늘 날짜와 일정 진행도 기준으로 자동 계산됩니다.
+- `docs/supabase-schema.sql`에 Supabase용 테이블과 RLS 정책 초안을 넣어두었습니다.
 
 ## GitHub Pages + Supabase 메모
 
