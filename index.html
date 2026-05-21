@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>My Apply Calendar</title>
+    <link rel="stylesheet" href="assets/css/style.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">My Apply Calendar</p>
+      </div>
+      <button class="primary-action" id="newApplyButton" type="button">+ New Apply</button>
+    </header>
+
+    <main class="app-shell">
+      <section class="today-focus" aria-label="오늘의 포커스">
+        <div>
+          <span>Today</span>
+          <strong id="focusTitle">Application tracker</strong>
+        </div>
+        <p id="focusCopy">Keep the next step visible.</p>
+      </section>
+
+      <section class="toolbar" aria-label="보기 및 필터">
+        <div class="view-switch" role="tablist" aria-label="보기 전환">
+          <button class="view-button active" data-view="list" type="button" role="tab" aria-selected="true">리스트</button>
+          <button class="view-button" data-view="calendar" type="button" role="tab" aria-selected="false">달력</button>
+          <button class="view-button settings-tab" data-view="settings" type="button" role="tab" aria-selected="false">설정</button>
+        </div>
+        <label class="search-field">
+          <span>검색</span>
+          <input id="searchInput" type="search" placeholder="회사, 요건, 상태" />
+        </label>
+      </section>
+
+      <section class="summary-strip" aria-label="지원 현황 요약">
+        <article>
+          <span id="summaryTotal">0</span>
+          <p>Total</p>
+        </article>
+        <article>
+          <span id="summaryLive">0</span>
+          <p>Live</p>
+        </article>
+      </section>
+
+      <section id="listView" class="view-panel active" aria-label="지원 리스트">
+        <div id="applyList" class="apply-list"></div>
+      </section>
+
+      <section id="calendarView" class="view-panel" aria-label="지원 달력">
+        <div class="calendar-head">
+          <button class="icon-button" id="prevMonthButton" type="button" aria-label="이전 달">‹</button>
+          <h2 id="calendarTitle"></h2>
+          <button class="icon-button" id="nextMonthButton" type="button" aria-label="다음 달">›</button>
+        </div>
+        <div class="calendar-grid weekday-row" aria-hidden="true">
+          <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+        </div>
+        <div id="calendarGrid" class="calendar-grid"></div>
+      </section>
+
+      <section id="settingsView" class="view-panel" aria-label="설정">
+        <div class="settings-panel">
+          <h2>Settings</h2>
+          <p>Supabase 연결, 알림, 표시 옵션을 여기에 붙일 수 있습니다.</p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-bar" aria-label="모바일 내비게이션">
+      <button class="bottom-nav active" data-view="list" type="button">List</button>
+      <button class="bottom-nav" data-view="calendar" type="button">Calendar</button>
+      <button class="bottom-nav" data-view="settings" type="button">Settings</button>
+    </nav>
+
+    <dialog id="applyDialog" class="modal">
+      <form id="applyForm" method="dialog">
+        <div class="modal-head">
+          <div>
+            <p class="eyebrow">Application</p>
+            <h2 id="dialogTitle">New Apply</h2>
+          </div>
+          <button class="ghost-button" id="closeDialogButton" type="button">닫기</button>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            회사
+            <input name="company" required placeholder="예: 한국전력공사" />
+          </label>
+          <label>
+            요건
+            <input name="role" required placeholder="예: IT / 전산 / 보안" />
+          </label>
+          <label>
+            공고 URL
+            <input name="url" type="url" placeholder="https://..." />
+          </label>
+          <label>
+            지원 URL
+            <input name="applyUrl" type="url" placeholder="https://..." />
+          </label>
+          <label>
+            중요도
+            <select name="priority">
+              <option value="high">높음</option>
+              <option value="medium" selected>보통</option>
+              <option value="low">낮음</option>
+              <option value="drop">Drop</option>
+            </select>
+          </label>
+          <label class="wide">
+            메모
+            <textarea name="notes" rows="3" placeholder="공고 특이사항, 준비할 것"></textarea>
+          </label>
+        </div>
+
+        <div class="schedule-editor">
+          <div class="section-title">
+            <h3>일정</h3>
+            <button class="secondary-action" id="addEventButton" type="button">+ 일정 추가</button>
+          </div>
+          <div id="eventRows" class="event-rows"></div>
+        </div>
+
+        <menu class="modal-actions">
+          <button class="danger-button" id="deleteApplyButton" type="button">삭제</button>
+          <span></span>
+          <button class="ghost-button" id="cancelDialogButton" type="button">취소</button>
+          <button class="primary-action" type="submit">저장</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <dialog id="dayDialog" class="modal small-modal">
+      <div class="modal-head">
+        <div>
+          <p class="eyebrow">Calendar</p>
+          <h2 id="dayDialogTitle">일정</h2>
+        </div>
+        <button class="ghost-button" id="closeDayDialogButton" type="button">닫기</button>
+      </div>
+      <div id="dayDetails" class="day-details"></div>
+    </dialog>
+
+    <script src="assets/js/app.js"></script>
+  </body>
+</html>
