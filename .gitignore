@@ -1,5 +1,6 @@
 server.log
 server.err.log
+gcm-diagnose.log
 .DS_Store
 Thumbs.db
 docs/
