@@ -1,5 +1,12 @@
 const STORAGE_KEY = "my-apply-calendar.v3";
 const LEGACY_STORAGE_KEY = "my-apply-calendar.v1";
+const SUPABASE_JS_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+const SUPABASE_URL = "https://cygklvuqrsenohnwileg.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_JJ_AgZ5MbwhjeBYCaOQkoA_-aFzd0Jl";
+
+let supabaseClient = null;
+let supabaseSession = null;
+let supabaseProfile = null;
 
 const stagePresets = [
   ["1차", "원서", "제출"],
@@ -103,6 +110,15 @@ const els = {
   dayDialogTitle: document.querySelector("#dayDialogTitle"),
   dayDetails: document.querySelector("#dayDetails"),
   closeDayDialogButton: document.querySelector("#closeDayDialogButton"),
+  syncStatus: document.querySelector("#syncStatus"),
+  authForm: document.querySelector("#authForm"),
+  authEmailInput: document.querySelector("#authEmailInput"),
+  authPasswordInput: document.querySelector("#authPasswordInput"),
+  authNicknameInput: document.querySelector("#authNicknameInput"),
+  signInButton: document.querySelector("#signInButton"),
+  signUpButton: document.querySelector("#signUpButton"),
+  signOutButton: document.querySelector("#signOutButton"),
+  syncLocalButton: document.querySelector("#syncLocalButton"),
 };
 
 function makeId() {
@@ -226,6 +242,187 @@ function dateToDateTime(date) {
 
 function saveApplies() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.applies));
+}
+
+function isRemoteReady() {
+  return Boolean(supabaseClient && supabaseSession?.user);
+}
+
+async function initSupabase() {
+  try {
+    const { createClient } = await import(SUPABASE_JS_URL);
+    supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const { data, error } = await supabaseClient.auth.getSession();
+    if (error) throw error;
+    supabaseSession = data.session;
+    supabaseClient.auth.onAuthStateChange((event, session) => {
+      supabaseSession = session;
+      setTimeout(() => {
+        if (session?.user) {
+          ensureProfile().then(loadRemoteApplies).catch(showError);
+        } else {
+          supabaseProfile = null;
+          setSyncStatus("로그아웃됨");
+          render();
+        }
+      }, 0);
+    });
+    if (supabaseSession?.user) {
+      await ensureProfile();
+      await loadRemoteApplies();
+    } else {
+      setSyncStatus("연결됨 · 로그인 필요");
+    }
+  } catch (error) {
+    supabaseClient = null;
+    supabaseSession = null;
+    setSyncStatus("연결 실패");
+    showError(error);
+  }
+}
+
+function setSyncStatus(message) {
+  els.syncStatus.textContent = message;
+}
+
+function showError(error) {
+  console.error(error);
+  setSyncStatus(error?.message || "오류가 발생했습니다");
+}
+
+async function ensureProfile(nickname = "") {
+  if (!isRemoteReady()) return;
+  const user = supabaseSession.user;
+  const payload = {
+    user_id: user.id,
+    email: user.email,
+    nickname: nickname || user.user_metadata?.nickname || user.email?.split("@")[0] || "MAC User",
+  };
+  const { data, error } = await supabaseClient
+    .from("users")
+    .upsert(payload, { onConflict: "user_id" })
+    .select()
+    .single();
+  if (error) throw error;
+  supabaseProfile = data;
+  setSyncStatus(`${supabaseProfile.nickname} · Supabase 동기화`);
+}
+
+async function loadRemoteApplies() {
+  if (!isRemoteReady()) return;
+  setSyncStatus("불러오는 중...");
+  const { data: applies, error: appliesError } = await supabaseClient
+    .from("applies")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (appliesError) throw appliesError;
+
+  const applyIds = applies.map((apply) => apply.apply_id);
+  let stages = [];
+  if (applyIds.length) {
+    const { data, error } = await supabaseClient
+      .from("apply_stages")
+      .select("*")
+      .in("apply_id", applyIds)
+      .order("sort_order", { ascending: true });
+    if (error) throw error;
+    stages = data;
+  }
+
+  const stagesByApply = new Map();
+  stages.forEach((stage) => {
+    const list = stagesByApply.get(stage.apply_id) || [];
+    list.push(remoteStageToLocal(stage));
+    stagesByApply.set(stage.apply_id, list);
+  });
+
+  state.applies = normalizeApplies(applies.map((apply) => ({
+    ...apply,
+    stages: stagesByApply.get(apply.apply_id) || [],
+  })));
+  saveApplies();
+  setSyncStatus(`${supabaseProfile?.nickname || "Supabase"} · 동기화됨`);
+  render();
+}
+
+function remoteStageToLocal(stage) {
+  return {
+    ...stage,
+    start_at: toLocalDateTime(stage.start_at),
+    end_at: toLocalDateTime(stage.end_at),
+  };
+}
+
+function toLocalDateTime(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  const offset = date.getTimezoneOffset() * 60000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+}
+
+function toRemoteDateTime(value) {
+  return value ? new Date(value).toISOString() : null;
+}
+
+function applyToRemote(apply) {
+  return {
+    apply_id: apply.apply_id,
+    user_id: supabaseSession.user.id,
+    company_name: apply.company_name,
+    title: apply.title,
+    priority_color: apply.priority_color,
+    status: apply.status,
+    memo: apply.memo || null,
+    notice_url: apply.notice_url || null,
+    apply_url: apply.apply_url || null,
+  };
+}
+
+function stageToRemote(stage, applyId) {
+  return {
+    stage_id: stage.stage_id,
+    apply_id: applyId,
+    user_id: supabaseSession.user.id,
+    nth_type: stage.nth_type,
+    step_type: stage.step_type,
+    state_type: stage.state_type,
+    memo: stage.memo || null,
+    start_at: stage.is_unknown_date ? null : toRemoteDateTime(stage.start_at),
+    end_at: stage.is_unknown_date ? null : toRemoteDateTime(stage.end_at),
+    is_unknown_date: stage.is_unknown_date,
+    unknown_date_text: stage.unknown_date_text || null,
+    is_completed: stage.is_completed,
+    result: stage.result || null,
+    sort_order: stage.sort_order,
+  };
+}
+
+async function saveRemoteApply(apply) {
+  const { error: applyError } = await supabaseClient
+    .from("applies")
+    .upsert(applyToRemote(apply), { onConflict: "apply_id" });
+  if (applyError) throw applyError;
+
+  const { error: deleteError } = await supabaseClient
+    .from("apply_stages")
+    .delete()
+    .eq("apply_id", apply.apply_id);
+  if (deleteError) throw deleteError;
+
+  if (apply.stages.length) {
+    const { error: stagesError } = await supabaseClient
+      .from("apply_stages")
+      .insert(apply.stages.map((stage) => stageToRemote(stage, apply.apply_id)));
+    if (stagesError) throw stagesError;
+  }
+}
+
+async function deleteRemoteApply(applyId) {
+  const { error } = await supabaseClient
+    .from("applies")
+    .delete()
+    .eq("apply_id", applyId);
+  if (error) throw error;
 }
 
 function setView(view) {
@@ -476,7 +673,7 @@ function updateDraftStage(row) {
   state.draft.status = deriveStatus(state.draft);
 }
 
-function saveDetail() {
+async function saveDetail() {
   syncDraftFromFields();
   if (!state.draft.company_name || !state.draft.title) {
     els.detailCompany.reportValidity();
@@ -492,9 +689,19 @@ function saveDetail() {
   } else {
     state.applies.unshift(state.draft);
   }
-  saveApplies();
-  state.draft = null;
-  setView("dashboard");
+  try {
+    if (isRemoteReady()) {
+      setSyncStatus("저장 중...");
+      await saveRemoteApply(state.draft);
+      await loadRemoteApplies();
+    } else {
+      saveApplies();
+    }
+    state.draft = null;
+    setView("dashboard");
+  } catch (error) {
+    showError(error);
+  }
 }
 
 function deriveStatus(apply) {
@@ -730,11 +937,102 @@ els.saveDetailButton.addEventListener("click", saveDetail);
 els.cancelDetailButton.addEventListener("click", () => setView(state.previousView || "dashboard"));
 els.deleteApplyButton.addEventListener("click", () => {
   if (!state.editingId) return;
-  state.applies = state.applies.filter((apply) => apply.apply_id !== state.editingId);
-  saveApplies();
-  state.draft = null;
-  setView("dashboard");
+  const applyId = state.editingId;
+  const removeLocal = () => {
+    state.applies = state.applies.filter((apply) => apply.apply_id !== applyId);
+    saveApplies();
+    state.draft = null;
+    setView("dashboard");
+  };
+  if (!isRemoteReady()) {
+    removeLocal();
+    return;
+  }
+  setSyncStatus("삭제 중...");
+  deleteRemoteApply(applyId)
+    .then(loadRemoteApplies)
+    .then(() => {
+      state.draft = null;
+      setView("dashboard");
+    })
+    .catch(showError);
 });
 els.closeDayDialogButton.addEventListener("click", () => els.dayDialog.close());
 
+els.authForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  els.signInButton.click();
+});
+
+els.signInButton.addEventListener("click", async () => {
+  if (!supabaseClient) {
+    setSyncStatus("Supabase 연결을 준비 중입니다");
+    return;
+  }
+  try {
+    setSyncStatus("로그인 중...");
+    const { error } = await supabaseClient.auth.signInWithPassword({
+      email: els.authEmailInput.value.trim(),
+      password: els.authPasswordInput.value,
+    });
+    if (error) throw error;
+    await ensureProfile();
+    await loadRemoteApplies();
+  } catch (error) {
+    showError(error);
+  }
+});
+
+els.signUpButton.addEventListener("click", async () => {
+  if (!supabaseClient) {
+    setSyncStatus("Supabase 연결을 준비 중입니다");
+    return;
+  }
+  try {
+    setSyncStatus("가입 중...");
+    const nickname = els.authNicknameInput.value.trim();
+    const { data, error } = await supabaseClient.auth.signUp({
+      email: els.authEmailInput.value.trim(),
+      password: els.authPasswordInput.value,
+      options: { data: { nickname } },
+    });
+    if (error) throw error;
+    supabaseSession = data.session;
+    if (data.session?.user) {
+      await ensureProfile(nickname);
+      await loadRemoteApplies();
+    } else {
+      setSyncStatus("가입 확인 메일을 확인하세요");
+    }
+  } catch (error) {
+    showError(error);
+  }
+});
+
+els.signOutButton.addEventListener("click", async () => {
+  if (!supabaseClient) return;
+  await supabaseClient.auth.signOut();
+  supabaseSession = null;
+  supabaseProfile = null;
+  setSyncStatus("로그아웃됨");
+  render();
+});
+
+els.syncLocalButton.addEventListener("click", async () => {
+  if (!isRemoteReady()) {
+    setSyncStatus("로그인 후 동기화할 수 있습니다");
+    return;
+  }
+  try {
+    setSyncStatus("로컬 데이터 업로드 중...");
+    for (const apply of state.applies) {
+      await saveRemoteApply(apply);
+    }
+    await loadRemoteApplies();
+  } catch (error) {
+    showError(error);
+  }
+});
+
 setView("dashboard");
+initSupabase();

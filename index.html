@@ -194,9 +194,30 @@
           </section>
 
           <section class="section-card settings-list">
-            <button type="button"><span>계정 관리</span><strong>준비중</strong></button>
-            <button type="button"><span>알림 설정</span><strong>준비중</strong></button>
-            <button type="button"><span>Supabase 연결</span><strong>다음 단계</strong></button>
+            <div class="settings-row">
+              <span>연결 상태</span>
+              <strong id="syncStatus">로컬 모드</strong>
+            </div>
+            <form id="authForm" class="settings-form">
+              <label>
+                <span>Email</span>
+                <input id="authEmailInput" type="email" autocomplete="email" placeholder="you@example.com" />
+              </label>
+              <label>
+                <span>Password</span>
+                <input id="authPasswordInput" type="password" autocomplete="current-password" placeholder="비밀번호" />
+              </label>
+              <label>
+                <span>Nickname</span>
+                <input id="authNicknameInput" placeholder="닉네임" />
+              </label>
+              <div class="form-actions">
+                <button class="primary-action" id="signInButton" type="button">로그인</button>
+                <button class="secondary-action" id="signUpButton" type="button">회원가입</button>
+                <button class="ghost-button" id="signOutButton" type="button">로그아웃</button>
+              </div>
+            </form>
+            <button id="syncLocalButton" type="button"><span>로컬 데이터를 Supabase로 올리기</span><strong>Sync</strong></button>
           </section>
         </section>
       </section>
@@ -223,7 +244,7 @@
       <div id="dayDetails" class="day-details"></div>
     </dialog>
 
-    <script src="assets/js/app.js"></script>
+    <script type="module" src="assets/js/app.js"></script>
     <script>
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
