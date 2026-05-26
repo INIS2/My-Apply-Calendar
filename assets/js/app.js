@@ -117,6 +117,7 @@ const els = {
   authForm: document.querySelector("#authForm"),
   authEmailInput: document.querySelector("#authEmailInput"),
   authPasswordInput: document.querySelector("#authPasswordInput"),
+  authPasswordConfirmInput: document.querySelector("#authPasswordConfirmInput"),
   authNicknameInput: document.querySelector("#authNicknameInput"),
   signInButton: document.querySelector("#signInButton"),
   signUpButton: document.querySelector("#signUpButton"),
@@ -245,6 +246,10 @@ function dateToDateTime(date) {
 
 function saveApplies() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.applies));
+}
+
+function getAppUrl() {
+  return new URL("./", window.location.href).href;
 }
 
 function isRemoteReady() {
@@ -974,6 +979,10 @@ els.authForm.addEventListener("submit", (event) => {
   els.signInButton.click();
 });
 
+els.authPasswordConfirmInput.addEventListener("input", () => {
+  els.authPasswordConfirmInput.setCustomValidity("");
+});
+
 els.signInButton.addEventListener("click", async () => {
   if (!supabaseClient) {
     setSyncStatus("Supabase 연결을 준비 중입니다");
@@ -998,13 +1007,22 @@ els.signUpButton.addEventListener("click", async () => {
     setSyncStatus("Supabase 연결을 준비 중입니다");
     return;
   }
+  if (els.authPasswordInput.value !== els.authPasswordConfirmInput.value) {
+    els.authPasswordConfirmInput.setCustomValidity("비밀번호가 일치하지 않습니다.");
+    els.authPasswordConfirmInput.reportValidity();
+    return;
+  }
+  els.authPasswordConfirmInput.setCustomValidity("");
   try {
     setSyncStatus("가입 중...");
     const nickname = els.authNicknameInput.value.trim();
     const { data, error } = await supabaseClient.auth.signUp({
       email: els.authEmailInput.value.trim(),
       password: els.authPasswordInput.value,
-      options: { data: { nickname } },
+      options: {
+        data: { nickname },
+        emailRedirectTo: getAppUrl(),
+      },
     });
     if (error) throw error;
     supabaseSession = data.session;
