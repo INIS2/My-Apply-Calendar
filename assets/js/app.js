@@ -268,9 +268,10 @@ async function initSupabase() {
     supabaseSession = data.session;
     supabaseClient.auth.onAuthStateChange((event, session) => {
       supabaseSession = session;
+      if (event === "INITIAL_SESSION") return;
       setTimeout(() => {
-      if (session?.user) {
-        ensureProfile().then(loadRemoteApplies).catch(showError);
+        if (session?.user) {
+          ensureProfile().then(loadRemoteApplies).catch(showError);
       } else {
         supabaseProfile = null;
         setConnectionState("pending", "Supabase 연결됨", "로그아웃 상태입니다. 로컬 캐시 데이터가 표시됩니다.");
@@ -341,8 +342,13 @@ function validateAuthFields({ confirmPassword = false } = {}) {
 }
 
 function showError(error) {
-  console.error(error);
+  console.warn("Handled app error", error);
   const message = error?.message || "연결 중 오류가 발생했습니다";
+  if (error?.code === "42501") {
+    setConnectionState("error", "DB 권한 설정 필요", "Supabase SQL Editor에서 GRANT 권한 SQL을 실행해야 합니다.");
+    setAuthMessage("DB 권한 설정이 필요합니다. GRANT SQL을 실행해 주세요.", "error");
+    return;
+  }
   setConnectionState("error", "Supabase 오류", message);
   setAuthMessage(message, "error");
 }

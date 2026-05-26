@@ -1,4 +1,4 @@
-const CACHE_NAME = "mac-pwa-v7";
+const CACHE_NAME = "mac-pwa-v8";
 const APP_SHELL = [
   "./",
   "./index.html",
