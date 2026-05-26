@@ -5,6 +5,8 @@
 ## Access
 https://inis2.github.io/My-Apply-Calendar/
 
+PWA and Supabase connection test build.
+
 ## 현재 상태
 
 - GitHub Pages에 바로 올릴 수 있는 정적 앱입니다.
