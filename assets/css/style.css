@@ -634,25 +634,48 @@ textarea:focus {
 }
 
 .priority-options {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: 10px;
 }
 
 .priority-options button {
-  min-height: 64px;
+  display: grid;
+  place-items: center;
+  width: 54px;
+  height: 42px;
+  min-height: 42px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   background: var(--surface);
-  color: var(--muted);
-  font-weight: 800;
 }
 
 .priority-options button.active {
   border-color: var(--primary);
-  color: var(--primary);
   outline: 2px solid var(--primary);
   outline-offset: 2px;
+}
+
+.priority-swatch {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+}
+
+.priority-swatch.high {
+  background: var(--danger);
+}
+
+.priority-swatch.medium {
+  background: var(--tertiary);
+}
+
+.priority-swatch.low {
+  background: var(--secondary);
+}
+
+.priority-swatch.drop {
+  background: var(--subtle);
 }
 
 .url-grid,
@@ -672,13 +695,13 @@ textarea:focus {
 
 .stage-list {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .stage-card {
   display: grid;
-  gap: 12px;
-  padding: 14px;
+  gap: 8px;
+  padding: 10px;
   border-left: 4px solid var(--primary);
   border-radius: var(--radius);
   background: rgb(255 255 255 / 0.74);
@@ -688,22 +711,30 @@ textarea:focus {
 .stage-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   gap: 10px;
 }
 
-.stage-head > span {
-  border-radius: var(--radius-sm);
-  background: var(--primary-soft);
-  color: var(--primary-strong);
-  padding: 4px 9px;
-  font-size: 12px;
-  font-weight: 800;
+.stage-grid {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) auto;
+  align-items: center;
 }
 
-.stage-grid {
-  grid-template-columns: repeat(3, minmax(120px, 1fr));
-  align-items: end;
+.stage-grid label {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.stage-grid label > span {
+  white-space: nowrap;
+}
+
+.stage-grid input,
+.stage-grid select {
+  min-height: 36px;
+  padding: 7px 9px;
 }
 
 .check-label {
@@ -720,15 +751,20 @@ textarea:focus {
 
 .check-label.boxed {
   justify-content: center;
-  min-height: 43px;
+  min-height: 36px;
   border: 1px solid var(--line);
   border-radius: var(--radius-sm);
   padding: 0 10px;
 }
 
+.stage-memo {
+  grid-column: span 2;
+}
+
 .remove-stage {
   min-width: 64px;
-  align-self: end;
+  min-height: 36px;
+  align-self: center;
 }
 
 .detail-actions {

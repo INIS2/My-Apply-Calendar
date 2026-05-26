@@ -10,11 +10,17 @@ let supabaseProfile = null;
 
 const stagePresets = [
   ["1차", "원서", "제출"],
-  ["1차", "서류", "결과발표"],
+  ["1차", "증빙", "결과발표"],
   ["2차", "필기", "응시"],
   ["3차", "면접", "응시"],
   ["최종", "합격", "결과발표"],
 ];
+
+const stageOptions = {
+  nth_type: ["1차", "2차", "3차", "최종", "커스텀"],
+  step_type: ["공고", "원서", "증빙", "필기", "면접", "합격", "커스텀"],
+  state_type: ["알림", "응시", "결과발표", "제출", "커스텀"],
+};
 
 const sampleApplies = [
   {
@@ -477,7 +483,17 @@ function toLocalDateTime(value) {
 }
 
 function toRemoteDateTime(value) {
-  return value ? new Date(value).toISOString() : null;
+  return value ? new Date(normalizeStageDateTime(value)).toISOString() : null;
+}
+
+function toDateInput(value) {
+  return value ? value.slice(0, 10) : "";
+}
+
+function normalizeStageDateTime(value) {
+  if (!value) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return `${value}T00:00`;
+  return value;
 }
 
 function applyToRemote(apply) {
@@ -708,7 +724,6 @@ function stageRow(stage, index) {
   return `
     <article class="stage-card" data-stage-id="${escapeAttr(stage.stage_id)}">
       <div class="stage-head">
-        <span>${escapeHtml(stage.nth_type || `${index + 1}차`)}</span>
         <label class="check-label">
           <input data-stage-field="is_completed" type="checkbox" ${stage.is_completed || stage.result ? "checked" : ""} />
           완료
@@ -717,23 +732,29 @@ function stageRow(stage, index) {
       <div class="stage-grid">
         <label>
           <span>차수</span>
-          <input data-stage-field="nth_type" value="${escapeAttr(stage.nth_type)}" placeholder="1차" />
+          <select data-stage-field="nth_type" required>
+            ${optionHtml(stageOptions.nth_type, stage.nth_type)}
+          </select>
         </label>
         <label>
           <span>단계</span>
-          <input data-stage-field="step_type" value="${escapeAttr(stage.step_type)}" placeholder="면접" />
+          <select data-stage-field="step_type" required>
+            ${optionHtml(stageOptions.step_type, stage.step_type)}
+          </select>
         </label>
         <label>
           <span>상태</span>
-          <input data-stage-field="state_type" value="${escapeAttr(stage.state_type)}" placeholder="응시" />
+          <select data-stage-field="state_type" required>
+            ${optionHtml(stageOptions.state_type, stage.state_type)}
+          </select>
         </label>
         <label>
           <span>시작</span>
-          <input data-stage-field="start_at" type="datetime-local" value="${escapeAttr(stage.start_at)}" ${stage.is_unknown_date ? "disabled" : ""} />
+          <input data-stage-field="start_at" type="date" value="${escapeAttr(toDateInput(stage.start_at))}" ${stage.is_unknown_date ? "disabled" : ""} />
         </label>
         <label>
           <span>종료</span>
-          <input data-stage-field="end_at" type="datetime-local" value="${escapeAttr(stage.end_at)}" ${stage.is_unknown_date ? "disabled" : ""} />
+          <input data-stage-field="end_at" type="date" value="${escapeAttr(toDateInput(stage.end_at))}" ${stage.is_unknown_date ? "disabled" : ""} />
         </label>
         <label class="check-label boxed">
           <input data-stage-field="is_unknown_date" type="checkbox" ${stage.is_unknown_date ? "checked" : ""} />
@@ -753,11 +774,21 @@ function stageRow(stage, index) {
             <option value="SKIP" ${stage.result === "SKIP" ? "selected" : ""}>포기</option>
           </select>
         </label>
+        <label class="stage-memo">
+          <span>메모</span>
+          <input data-stage-field="memo" value="${escapeAttr(stage.memo)}" placeholder="단계 메모" />
+        </label>
         <button class="ghost-button remove-stage" data-remove-stage type="button">삭제</button>
       </div>
-      <textarea data-stage-field="memo" rows="2" placeholder="단계 메모">${escapeHtml(stage.memo)}</textarea>
     </article>
   `;
+}
+
+function optionHtml(options, selectedValue) {
+  const value = options.includes(selectedValue) ? selectedValue : "커스텀";
+  return options
+    .map((option) => `<option value="${escapeAttr(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option)}</option>`)
+    .join("");
 }
 
 function syncDraftFromFields() {
@@ -777,8 +808,8 @@ function updateDraftStage(row) {
   stage.nth_type = field("nth_type").value.trim();
   stage.step_type = field("step_type").value.trim();
   stage.state_type = field("state_type").value.trim();
-  stage.start_at = field("is_unknown_date").checked ? "" : field("start_at").value;
-  stage.end_at = field("is_unknown_date").checked ? "" : field("end_at").value;
+  stage.start_at = field("is_unknown_date").checked ? "" : normalizeStageDateTime(field("start_at").value);
+  stage.end_at = field("is_unknown_date").checked ? "" : normalizeStageDateTime(field("end_at").value);
   stage.is_unknown_date = field("is_unknown_date").checked;
   stage.unknown_date_text = field("unknown_date_text").value.trim();
   stage.result = field("result").value;
@@ -799,6 +830,7 @@ async function saveDetail() {
   state.draft.stages = state.draft.stages
     .filter((stage) => stage.nth_type || stage.step_type || stage.state_type)
     .map((stage, index) => ({ ...stage, sort_order: index }));
+  if (!validateStages()) return;
   state.draft.status = deriveStatus(state.draft);
   if (state.editingId) {
     state.applies = state.applies.map((apply) => apply.apply_id === state.editingId ? state.draft : apply);
@@ -818,6 +850,41 @@ async function saveDetail() {
   } catch (error) {
     showError(error);
   }
+}
+
+function validateStages() {
+  for (const stage of state.draft.stages) {
+    if (!stage.nth_type || !stage.step_type || !stage.state_type) {
+      showValidationMessage("차수, 단계, 상태를 선택하세요");
+      return false;
+    }
+    if (stage.is_unknown_date && !stage.unknown_date_text.trim()) {
+      showValidationMessage("날짜 미정이면 미정 메모를 입력하세요");
+      return false;
+    }
+    if (stage.start_at && Number.isNaN(new Date(stage.start_at).getTime())) {
+      showValidationMessage("시작 날짜를 확인하세요");
+      return false;
+    }
+    if (stage.end_at && Number.isNaN(new Date(stage.end_at).getTime())) {
+      showValidationMessage("종료 날짜를 확인하세요");
+      return false;
+    }
+    if (!stage.start_at && stage.end_at) {
+      showValidationMessage("종료 날짜를 쓰려면 시작 날짜도 선택하세요");
+      return false;
+    }
+    if (stage.start_at && stage.end_at && new Date(stage.end_at) < new Date(stage.start_at)) {
+      showValidationMessage("종료 날짜는 시작 날짜 이후여야 합니다");
+      return false;
+    }
+  }
+  return true;
+}
+
+function showValidationMessage(message) {
+  setSyncStatus(message);
+  window.alert(message);
 }
 
 function deriveStatus(apply) {
@@ -1018,7 +1085,7 @@ els.addStageButton.addEventListener("click", () => {
   state.draft.stages.push({
     stage_id: makeId(),
     nth_type: "커스텀",
-    step_type: "새 전형",
+    step_type: "면접",
     state_type: "알림",
     memo: "",
     start_at: "",
