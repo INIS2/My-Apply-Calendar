@@ -2,6 +2,9 @@
 
 여러 회사 지원 현황과 공고, 마감, 발표, 면접 일정을 리스트와 달력으로 함께 관리하는 정적 웹앱입니다.
 
+## Access
+https://inis2.github.io/My-Apply-Calendar/
+
 ## 현재 상태
 
 - GitHub Pages에 바로 올릴 수 있는 정적 앱입니다.
