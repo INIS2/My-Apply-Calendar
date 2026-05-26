@@ -1,273 +1,579 @@
-const STORAGE_KEY = "my-apply-calendar.v1";
+const STORAGE_KEY = "my-apply-calendar.v3";
+const LEGACY_STORAGE_KEY = "my-apply-calendar.v1";
 
-const defaultEventTemplates = [
-  ["공고일", "announce"],
-  ["원서접수마감", "go"],
-  ["서류 발표", "announce"],
-  ["필기일", "go"],
-  ["필기발표", "announce"],
-  ["면접일", "go"],
-  ["면접 발표", "announce"],
-  ["최합발표", "announce"],
+const stagePresets = [
+  ["1차", "원서", "제출"],
+  ["1차", "서류", "결과발표"],
+  ["2차", "필기", "응시"],
+  ["3차", "면접", "응시"],
+  ["최종", "합격", "결과발표"],
 ];
 
-const sampleData = [
+const sampleApplies = [
   {
-    id: makeId(),
-    company: "한국전력공사",
-    role: "전산직",
-    url: "https://example.com",
-    applyUrl: "https://example.com/apply",
-    priority: "high",
-    notes: "면접 다녀온 뒤 질문 복기 필요",
-    events: [
-      { id: makeId(), label: "원서접수마감", type: "go", date: "2026-05-25", unknown: false, done: true, result: "submitted", review: "" },
-      { id: makeId(), label: "면접일", type: "go", date: "2026-05-29", unknown: false, done: false, result: "", review: "" },
-      { id: makeId(), label: "면접 발표", type: "announce", date: "2026-06-05", unknown: false, done: false, result: "", review: "" },
+    apply_id: makeId(),
+    company_name: "Google Korea",
+    title: "Product Designer",
+    priority_color: "RED",
+    status: "IN_PROGRESS",
+    memo: "포트폴리오와 면접 질문 복기 필요",
+    notice_url: "https://example.com",
+    apply_url: "https://example.com/apply",
+    stages: [
+      stageSeed("1차", "원서", "제출", "2026-05-24T18:00", "", true, "DONE"),
+      stageSeed("최종", "면접", "응시", "2026-05-29T14:00", "", false, ""),
     ],
   },
   {
-    id: makeId(),
-    company: "서울교통공사",
-    role: "정보보안",
-    url: "",
-    applyUrl: "",
-    priority: "medium",
-    notes: "",
-    events: [
-      { id: makeId(), label: "필기일", type: "go", date: "2026-05-31", unknown: false, done: false, result: "", review: "" },
-      { id: makeId(), label: "필기발표", type: "announce", date: "", unknown: true, done: false, result: "", review: "" },
+    apply_id: makeId(),
+    company_name: "Toss",
+    title: "UX Researcher",
+    priority_color: "YELLOW",
+    status: "IN_PROGRESS",
+    memo: "1차 면접 준비",
+    notice_url: "",
+    apply_url: "",
+    stages: [
+      stageSeed("1차", "면접", "응시", "2026-05-26T10:00", "", false, ""),
+      stageSeed("1차", "면접", "결과발표", "2026-06-02T18:00", "", false, ""),
+    ],
+  },
+  {
+    apply_id: makeId(),
+    company_name: "Coupang",
+    title: "Data Analyst",
+    priority_color: "BLUE",
+    status: "PASS",
+    memo: "최종 합격",
+    notice_url: "",
+    apply_url: "",
+    stages: [
+      stageSeed("1차", "서류", "결과발표", "2026-05-12T18:00", "", true, "PASS"),
+      stageSeed("2차", "면접", "응시", "2026-05-19T10:00", "", true, "PASS"),
+      stageSeed("최종", "합격", "결과발표", "2026-05-22T18:00", "", true, "PASS"),
     ],
   },
 ];
-
-function makeId() {
-  if (globalThis.crypto?.randomUUID) {
-    return globalThis.crypto.randomUUID();
-  }
-
-  return `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
-}
 
 const state = {
-  applications: loadApplications(),
-  view: "list",
+  applies: loadApplies(),
+  view: "dashboard",
+  previousView: "dashboard",
   query: "",
   editingId: null,
-  calendarDate: new Date(2026, 4, 1),
+  draft: null,
+  calendarDate: new Date(),
 };
 
 const els = {
+  screens: document.querySelectorAll(".screen"),
+  backButton: document.querySelector("#backButton"),
+  navButtons: document.querySelectorAll("[data-view]"),
+  monthButtons: document.querySelectorAll("[data-month]"),
   newApplyButton: document.querySelector("#newApplyButton"),
-  viewButtons: document.querySelectorAll(".view-button"),
-  listView: document.querySelector("#listView"),
-  calendarView: document.querySelector("#calendarView"),
-  applyList: document.querySelector("#applyList"),
+  mobileNewApplyButton: document.querySelector("#mobileNewApplyButton"),
   searchInput: document.querySelector("#searchInput"),
+  applyList: document.querySelector("#applyList"),
   summaryTotal: document.querySelector("#summaryTotal"),
   summaryLive: document.querySelector("#summaryLive"),
+  summaryDone: document.querySelector("#summaryDone"),
+  profileTotal: document.querySelector("#profileTotal"),
+  profileLive: document.querySelector("#profileLive"),
+  profileDone: document.querySelector("#profileDone"),
   focusTitle: document.querySelector("#focusTitle"),
   focusCopy: document.querySelector("#focusCopy"),
   calendarTitle: document.querySelector("#calendarTitle"),
+  calendarTitleMini: document.querySelector("#calendarTitleMini"),
+  calendarSubtitle: document.querySelector("#calendarSubtitle"),
   calendarGrid: document.querySelector("#calendarGrid"),
-  settingsView: document.querySelector("#settingsView"),
-  navButtons: document.querySelectorAll("[data-view]"),
-  prevMonthButton: document.querySelector("#prevMonthButton"),
-  nextMonthButton: document.querySelector("#nextMonthButton"),
-  applyDialog: document.querySelector("#applyDialog"),
-  applyForm: document.querySelector("#applyForm"),
-  dialogTitle: document.querySelector("#dialogTitle"),
-  closeDialogButton: document.querySelector("#closeDialogButton"),
-  cancelDialogButton: document.querySelector("#cancelDialogButton"),
+  calendarGridMini: document.querySelector("#calendarGridMini"),
+  detailPriorityRail: document.querySelector("#detailPriorityRail"),
+  detailCompany: document.querySelector("#detailCompany"),
+  detailRole: document.querySelector("#detailRole"),
+  detailNotes: document.querySelector("#detailNotes"),
+  detailUrl: document.querySelector("#detailUrl"),
+  detailApplyUrl: document.querySelector("#detailApplyUrl"),
+  priorityOptions: document.querySelector("#priorityOptions"),
+  addStageButton: document.querySelector("#addStageButton"),
+  stageRows: document.querySelector("#stageRows"),
+  saveDetailButton: document.querySelector("#saveDetailButton"),
+  cancelDetailButton: document.querySelector("#cancelDetailButton"),
   deleteApplyButton: document.querySelector("#deleteApplyButton"),
-  addEventButton: document.querySelector("#addEventButton"),
-  eventRows: document.querySelector("#eventRows"),
   dayDialog: document.querySelector("#dayDialog"),
   dayDialogTitle: document.querySelector("#dayDialogTitle"),
-  closeDayDialogButton: document.querySelector("#closeDayDialogButton"),
   dayDetails: document.querySelector("#dayDetails"),
+  closeDayDialogButton: document.querySelector("#closeDayDialogButton"),
 };
 
-function loadApplications() {
+function makeId() {
+  return globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : `id-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function stageSeed(nth_type, step_type, state_type, start_at, end_at, is_completed, result) {
+  return {
+    stage_id: makeId(),
+    nth_type,
+    step_type,
+    state_type,
+    memo: "",
+    start_at,
+    end_at,
+    is_unknown_date: false,
+    unknown_date_text: "",
+    is_completed,
+    result,
+    sort_order: 0,
+  };
+}
+
+function loadApplies() {
   const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return normalizeApplications(sampleData);
+  if (raw) {
+    try {
+      return normalizeApplies(JSON.parse(raw));
+    } catch {
+      return normalizeApplies(sampleApplies);
+    }
   }
 
-  try {
-    return normalizeApplications(JSON.parse(raw));
-  } catch {
-    return normalizeApplications(sampleData);
+  const legacy = localStorage.getItem(LEGACY_STORAGE_KEY);
+  if (legacy) {
+    try {
+      return normalizeApplies(JSON.parse(legacy));
+    } catch {
+      return normalizeApplies(sampleApplies);
+    }
   }
+
+  return normalizeApplies(sampleApplies);
 }
 
-function normalizeApplications(applications) {
-  return applications.map((app) => ({
-    ...app,
-    applyUrl: app.applyUrl || "",
-    priority: app.priority || "medium",
-    events: (app.events || []).map((event, index) => ({
-      id: event.id || makeId(),
-      label: event.label || `일정 ${index + 1}`,
-      type: event.type || event.event_type || "announce",
-      date: event.date || event.event_date || "",
-      unknown: Boolean(event.unknown ?? event.is_unknown),
-      done: Boolean(event.done ?? event.is_done ?? event.result),
-      result: event.result || "",
-      review: event.review || "",
+function normalizeApplies(applies) {
+  return applies.map((apply) => {
+    const applyId = apply.apply_id || apply.id || makeId();
+    const stages = apply.stages || apply.apply_stages || apply.events || [];
+    return {
+      apply_id: applyId,
+      company_name: apply.company_name || apply.company || "",
+      title: apply.title || apply.role || "",
+      priority_color: normalizePriority(apply.priority_color || apply.priority),
+      status: normalizeStatus(apply.status, stages),
+      memo: apply.memo || apply.notes || "",
+      notice_url: apply.notice_url || apply.url || "",
+      apply_url: apply.apply_url || apply.applyUrl || "",
+      stages: normalizeStages(stages),
+    };
+  });
+}
+
+function normalizeStages(stages) {
+  return stages.map((stage, index) => {
+    const startAt = stage.start_at || dateToDateTime(stage.date || stage.event_date);
+    const result = normalizeResult(stage.result);
+    return {
+      stage_id: stage.stage_id || stage.id || makeId(),
+      nth_type: stage.nth_type || inferNthType(index),
+      step_type: stage.step_type || stage.label || "전형",
+      state_type: stage.state_type || inferStateType(stage.type || stage.event_type),
+      memo: stage.memo || stage.review || "",
+      start_at: stage.is_unknown_date || stage.unknown || stage.is_unknown ? "" : startAt,
+      end_at: stage.end_at || "",
+      is_unknown_date: Boolean(stage.is_unknown_date ?? stage.unknown ?? stage.is_unknown),
+      unknown_date_text: stage.unknown_date_text || "",
+      is_completed: Boolean(stage.is_completed ?? stage.done ?? stage.is_done ?? result),
+      result,
+      sort_order: Number(stage.sort_order || index),
+    };
+  });
+}
+
+function normalizePriority(value) {
+  const map = { high: "RED", medium: "YELLOW", low: "BLUE", drop: "GRAY" };
+  const priority = map[value] || String(value || "GREEN").toUpperCase();
+  return ["RED", "YELLOW", "GREEN", "BLUE", "GRAY"].includes(priority) ? priority : "GREEN";
+}
+
+function normalizeStatus(value, stages = []) {
+  const status = String(value || "").toUpperCase();
+  if (["NOT_STARTED", "IN_PROGRESS", "PASS", "FAIL", "DROP"].includes(status)) return status;
+  if (stages.some((stage) => normalizeResult(stage.result) === "FAIL")) return "FAIL";
+  if (stages.length && stages.every((stage) => Boolean(stage.is_completed ?? stage.done ?? stage.result))) return "PASS";
+  return stages.length ? "IN_PROGRESS" : "NOT_STARTED";
+}
+
+function normalizeResult(value) {
+  const map = { done: "DONE", pass: "PASS", fail: "FAIL", skip: "SKIP", submitted: "DONE" };
+  const result = map[value] || String(value || "").toUpperCase();
+  return ["DONE", "PASS", "FAIL", "SKIP"].includes(result) ? result : "";
+}
+
+function inferNthType(index) {
+  if (index === 0) return "1차";
+  if (index === 1) return "2차";
+  if (index === 2) return "3차";
+  return "최종";
+}
+
+function inferStateType(type) {
+  return type === "go" ? "응시" : "결과발표";
+}
+
+function dateToDateTime(date) {
+  return date ? `${date}T09:00` : "";
+}
+
+function saveApplies() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.applies));
+}
+
+function setView(view) {
+  state.previousView = state.view === "detail" ? state.previousView : state.view;
+  state.view = view;
+  els.screens.forEach((screen) => screen.classList.toggle("active", screen.id === `${view}View`));
+  els.navButtons.forEach((button) => button.classList.toggle("active", button.dataset.view === view));
+  els.backButton.classList.toggle("visible", view === "detail");
+  document.body.dataset.view = view;
+  render();
+}
+
+function render() {
+  renderStats();
+  renderFocus();
+  renderList();
+  renderCalendars();
+  if (state.view === "detail") renderDetail();
+}
+
+function renderStats() {
+  const done = state.applies.filter(isApplyDone).length;
+  const live = state.applies.filter((apply) => apply.status !== "DROP" && !isApplyDone(apply)).length;
+  [
+    [els.summaryTotal, state.applies.length],
+    [els.summaryLive, live],
+    [els.summaryDone, done],
+    [els.profileTotal, state.applies.length],
+    [els.profileLive, live],
+    [els.profileDone, done],
+  ].forEach(([el, value]) => {
+    el.textContent = value;
+  });
+}
+
+function renderFocus() {
+  const next = getFlatStages()
+    .filter(({ stage }) => isUpcoming(stage.start_at) && !stage.is_completed && !stage.result)
+    .sort((a, b) => a.stage.start_at.localeCompare(b.stage.start_at))[0];
+  if (!next) {
+    els.focusTitle.textContent = "다음 일정 없음";
+    els.focusCopy.textContent = "지원 단계를 추가하면 여기에 표시됩니다.";
+    return;
+  }
+  els.focusTitle.textContent = `${next.apply.company_name} · ${stageTitle(next.stage)}`;
+  els.focusCopy.textContent = `${formatDateTime(next.stage.start_at)}까지 챙겨야 합니다.`;
+}
+
+function renderList() {
+  const applies = getFilteredApplies();
+  els.applyList.innerHTML = applies.length
+    ? applies.map(applyCard).join("")
+    : `<div class="empty-state">표시할 지원 항목이 없습니다.</div>`;
+}
+
+function applyCard(apply) {
+  const next = getNextStage(apply);
+  const status = getApplyStatus(apply);
+  const completion = getCompletionRatio(apply);
+  const dday = next?.start_at ? getDday(next.start_at) : "";
+  return `
+    <article class="apply-card priority-${priorityClass(apply.priority_color)}" data-open="${escapeAttr(apply.apply_id)}" tabindex="0" role="button" aria-label="${escapeAttr(apply.company_name)} 상세">
+      <span class="card-rail" aria-hidden="true"></span>
+      <div class="card-body">
+        <div class="card-top">
+          <div>
+            <h2>${escapeHtml(apply.company_name || "회사명 없음")}</h2>
+            <p>${escapeHtml(apply.title || "공고명 없음")}${next ? ` · ${escapeHtml(stageTitle(next))}` : ""}</p>
+          </div>
+          <div class="d-day ${status.tone}">
+            <span>${escapeHtml(status.label)}</span>
+            ${dday ? `<strong>${escapeHtml(dday)}</strong>` : ""}
+          </div>
+        </div>
+        <div class="progress-track" aria-label="진행률 ${completion}%"><span style="width: ${completion}%"></span></div>
+      </div>
+    </article>
+  `;
+}
+
+function renderCalendars() {
+  const year = state.calendarDate.getFullYear();
+  const month = state.calendarDate.getMonth();
+  const title = `${year}년 ${month + 1}월`;
+  els.calendarTitle.textContent = `${month + 1}월 일정`;
+  els.calendarTitleMini.textContent = title;
+  els.calendarSubtitle.textContent = title;
+  const cells = calendarCells(year, month);
+  els.calendarGrid.innerHTML = cells;
+  els.calendarGridMini.innerHTML = cells;
+}
+
+function calendarCells(year, month) {
+  const firstDay = new Date(year, month, 1).getDay();
+  const gridStart = new Date(year, month, 1 - firstDay);
+  const byDate = groupStagesByDate();
+  const cells = [];
+  for (let index = 0; index < 42; index += 1) {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    const dateKey = toDateKey(date);
+    const stages = byDate.get(dateKey) || [];
+    cells.push(`
+      <button class="day-cell ${date.getMonth() === month ? "" : "muted"} ${stages.length ? "has-event" : ""}" type="button" data-date="${dateKey}">
+        <span>${date.getDate()}</span>
+        <div class="day-markers">
+          ${stages.slice(0, 3).map(({ stage }) => `<i class="${escapeAttr(stageMarkerClass(stage))}"></i>`).join("")}
+        </div>
+      </button>
+    `);
+  }
+  return cells.join("");
+}
+
+function openDetail(apply = null) {
+  state.editingId = apply?.apply_id || null;
+  state.draft = structuredClone(apply || createEmptyApply());
+  setView("detail");
+}
+
+function createEmptyApply() {
+  return {
+    apply_id: makeId(),
+    company_name: "",
+    title: "",
+    priority_color: "GREEN",
+    status: "NOT_STARTED",
+    memo: "",
+    notice_url: "",
+    apply_url: "",
+    stages: stagePresets.map(([nth_type, step_type, state_type], index) => ({
+      stage_id: makeId(),
+      nth_type,
+      step_type,
+      state_type,
+      memo: "",
+      start_at: "",
+      end_at: "",
+      is_unknown_date: false,
+      unknown_date_text: "",
+      is_completed: false,
+      result: "",
+      sort_order: index,
     })),
-  }));
+  };
 }
 
-function saveApplications() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state.applications));
+function renderDetail() {
+  if (!state.draft) return;
+  els.detailCompany.value = state.draft.company_name;
+  els.detailRole.value = state.draft.title;
+  els.detailNotes.value = state.draft.memo;
+  els.detailUrl.value = state.draft.notice_url;
+  els.detailApplyUrl.value = state.draft.apply_url;
+  els.detailPriorityRail.className = `priority-rail priority-${priorityClass(state.draft.priority_color)}`;
+  els.priorityOptions.querySelectorAll("button").forEach((button) => {
+    button.classList.toggle("active", button.dataset.priority === priorityClass(state.draft.priority_color));
+  });
+  els.stageRows.innerHTML = [...state.draft.stages]
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(stageRow)
+    .join("");
+  els.deleteApplyButton.hidden = !state.editingId;
 }
 
-function formatDate(dateString) {
-  if (!dateString) return "미정";
-  return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", weekday: "short" }).format(new Date(`${dateString}T00:00:00`));
+function stageRow(stage, index) {
+  return `
+    <article class="stage-card" data-stage-id="${escapeAttr(stage.stage_id)}">
+      <div class="stage-head">
+        <span>${escapeHtml(stage.nth_type || `${index + 1}차`)}</span>
+        <label class="check-label">
+          <input data-stage-field="is_completed" type="checkbox" ${stage.is_completed || stage.result ? "checked" : ""} />
+          완료
+        </label>
+      </div>
+      <div class="stage-grid">
+        <label>
+          <span>차수</span>
+          <input data-stage-field="nth_type" value="${escapeAttr(stage.nth_type)}" placeholder="1차" />
+        </label>
+        <label>
+          <span>단계</span>
+          <input data-stage-field="step_type" value="${escapeAttr(stage.step_type)}" placeholder="면접" />
+        </label>
+        <label>
+          <span>상태</span>
+          <input data-stage-field="state_type" value="${escapeAttr(stage.state_type)}" placeholder="응시" />
+        </label>
+        <label>
+          <span>시작</span>
+          <input data-stage-field="start_at" type="datetime-local" value="${escapeAttr(stage.start_at)}" ${stage.is_unknown_date ? "disabled" : ""} />
+        </label>
+        <label>
+          <span>종료</span>
+          <input data-stage-field="end_at" type="datetime-local" value="${escapeAttr(stage.end_at)}" ${stage.is_unknown_date ? "disabled" : ""} />
+        </label>
+        <label class="check-label boxed">
+          <input data-stage-field="is_unknown_date" type="checkbox" ${stage.is_unknown_date ? "checked" : ""} />
+          미정
+        </label>
+        <label>
+          <span>미정 메모</span>
+          <input data-stage-field="unknown_date_text" value="${escapeAttr(stage.unknown_date_text)}" placeholder="하반기 예정" />
+        </label>
+        <label>
+          <span>결과</span>
+          <select data-stage-field="result">
+            <option value="" ${!stage.result ? "selected" : ""}>대기</option>
+            <option value="DONE" ${stage.result === "DONE" ? "selected" : ""}>완료</option>
+            <option value="PASS" ${stage.result === "PASS" ? "selected" : ""}>합격</option>
+            <option value="FAIL" ${stage.result === "FAIL" ? "selected" : ""}>불합격</option>
+            <option value="SKIP" ${stage.result === "SKIP" ? "selected" : ""}>포기</option>
+          </select>
+        </label>
+        <button class="ghost-button remove-stage" data-remove-stage type="button">삭제</button>
+      </div>
+      <textarea data-stage-field="memo" rows="2" placeholder="단계 메모">${escapeHtml(stage.memo)}</textarea>
+    </article>
+  `;
 }
 
-function isUpcoming(dateString) {
-  if (!dateString) return false;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(`${dateString}T00:00:00`);
-  return target >= today;
+function syncDraftFromFields() {
+  if (!state.draft) return;
+  state.draft.company_name = els.detailCompany.value.trim();
+  state.draft.title = els.detailRole.value.trim();
+  state.draft.memo = els.detailNotes.value.trim();
+  state.draft.notice_url = els.detailUrl.value.trim();
+  state.draft.apply_url = els.detailApplyUrl.value.trim();
+  state.draft.status = deriveStatus(state.draft);
 }
 
-function getFilteredApplications() {
+function updateDraftStage(row) {
+  const stage = state.draft.stages.find((item) => item.stage_id === row.dataset.stageId);
+  if (!stage) return;
+  const field = (name) => row.querySelector(`[data-stage-field="${name}"]`);
+  stage.nth_type = field("nth_type").value.trim();
+  stage.step_type = field("step_type").value.trim();
+  stage.state_type = field("state_type").value.trim();
+  stage.start_at = field("is_unknown_date").checked ? "" : field("start_at").value;
+  stage.end_at = field("is_unknown_date").checked ? "" : field("end_at").value;
+  stage.is_unknown_date = field("is_unknown_date").checked;
+  stage.unknown_date_text = field("unknown_date_text").value.trim();
+  stage.result = field("result").value;
+  stage.is_completed = field("is_completed").checked || Boolean(stage.result);
+  stage.memo = field("memo").value.trim();
+  field("start_at").disabled = stage.is_unknown_date;
+  field("end_at").disabled = stage.is_unknown_date;
+  state.draft.status = deriveStatus(state.draft);
+}
+
+function saveDetail() {
+  syncDraftFromFields();
+  if (!state.draft.company_name || !state.draft.title) {
+    els.detailCompany.reportValidity();
+    els.detailRole.reportValidity();
+    return;
+  }
+  state.draft.stages = state.draft.stages
+    .filter((stage) => stage.nth_type || stage.step_type || stage.state_type)
+    .map((stage, index) => ({ ...stage, sort_order: index }));
+  state.draft.status = deriveStatus(state.draft);
+  if (state.editingId) {
+    state.applies = state.applies.map((apply) => apply.apply_id === state.editingId ? state.draft : apply);
+  } else {
+    state.applies.unshift(state.draft);
+  }
+  saveApplies();
+  state.draft = null;
+  setView("dashboard");
+}
+
+function deriveStatus(apply) {
+  if (apply.priority_color === "GRAY") return "DROP";
+  if (!apply.stages.length) return "NOT_STARTED";
+  if (apply.stages.some((stage) => stage.result === "FAIL")) return "FAIL";
+  if (apply.stages.length && apply.stages.every((stage) => stage.is_completed || stage.result)) {
+    return apply.stages.some((stage) => stage.result === "PASS") ? "PASS" : "IN_PROGRESS";
+  }
+  return "IN_PROGRESS";
+}
+
+function getFilteredApplies() {
   const query = state.query.trim().toLowerCase();
-  if (!query) return state.applications;
-  return state.applications.filter((app) => {
-    const haystack = [app.company, app.role, getAutoStatus(app).label, app.notes, ...app.events.map((event) => event.label)].join(" ").toLowerCase();
+  if (!query) return state.applies;
+  return state.applies.filter((apply) => {
+    const haystack = [
+      apply.company_name,
+      apply.title,
+      apply.memo,
+      apply.status,
+      ...apply.stages.flatMap((stage) => [stage.nth_type, stage.step_type, stage.state_type, stage.memo]),
+    ].join(" ").toLowerCase();
     return haystack.includes(query);
   });
 }
 
-function getNeedsCheck(app) {
-  return app.events.filter((event) => {
-    if (event.unknown || !event.date) return false;
-    const eventDate = new Date(`${event.date}T00:00:00`);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return eventDate < today && !event.done;
+function getFlatStages() {
+  return state.applies.flatMap((apply) => apply.stages.map((stage) => ({ apply, stage })));
+}
+
+function groupStagesByDate() {
+  const map = new Map();
+  getFlatStages().forEach(({ apply, stage }) => {
+    const dateKey = dateTimeToDate(stage.start_at);
+    if (!dateKey || stage.is_unknown_date) return;
+    const list = map.get(dateKey) || [];
+    list.push({ apply, stage });
+    map.set(dateKey, list);
   });
+  return map;
 }
 
-function render() {
-  renderSummary();
-  renderList();
-  renderCalendar();
-}
-
-function renderSummary() {
-  const flatEvents = state.applications.flatMap((app) => app.events.map((event) => ({ ...event, app })));
-  const nextEvent = flatEvents
-    .filter((event) => isUpcoming(event.date) && !event.done && !event.result)
-    .sort((a, b) => a.date.localeCompare(b.date))[0];
-  els.summaryTotal.textContent = state.applications.length;
-  els.summaryLive.textContent = state.applications.filter((app) => app.priority !== "drop" && getAutoStatus(app).tone !== "done").length;
-  if (nextEvent) {
-    els.focusTitle.textContent = `${nextEvent.app.company} · ${nextEvent.label}`;
-    els.focusCopy.textContent = `${formatDate(nextEvent.date)}까지 챙겨야 합니다.`;
-  } else {
-    els.focusTitle.textContent = "Application tracker";
-    els.focusCopy.textContent = "Keep the next step visible.";
-  }
-}
-
-function renderList() {
-  const apps = getFilteredApplications();
-  if (!apps.length) {
-    els.applyList.innerHTML = `<div class="empty-state">아직 표시할 지원 항목이 없습니다.</div>`;
-    return;
-  }
-
-  els.applyList.innerHTML = apps.map((app) => {
-    const needsCheck = getNeedsCheck(app);
-    const autoStatus = getAutoStatus(app);
-    const sortedEvents = [...app.events].sort((a, b) => (a.date || "9999-12-31").localeCompare(b.date || "9999-12-31"));
-    return `
-      <article class="apply-card ${app.priority === "drop" ? "is-drop" : ""}" data-open="${app.id}" tabindex="0" role="button" aria-label="${escapeAttr(app.company)} 수정">
-        <span class="priority-bar ${app.priority}" aria-hidden="true"></span>
-        <div class="card-main">
-          <div class="card-topline">
-            <div class="title-stack">
-              <h3>${escapeHtml(app.company)}</h3>
-              <span class="status-pill ${autoStatus.tone}">${escapeHtml(autoStatus.label)}</span>
-            </div>
-            <div class="card-links">
-              ${linkButton(app.url, "공고 URL")}
-              ${linkButton(app.applyUrl, "지원 URL")}
-            </div>
-          </div>
-          <div class="subline-row">
-            ${app.notes ? `<p class="review-text">${escapeHtml(app.notes)}</p>` : `<p class="review-text">${escapeHtml(app.role)}</p>`}
-            ${needsCheck.length ? `<span class="check-pill">${needsCheck.length}개 체크 필요</span>` : ""}
-          </div>
-          <div class="card-events" style="--event-count: ${Math.max(sortedEvents.length, 1)}">
-            ${sortedEvents.map((event) => timelineSegment(event)).join("")}
-          </div>
-        </div>
-      </article>
-    `;
-  }).join("");
-}
-
-function linkButton(url, label) {
-  if (!url) {
-    return `<span class="link-button disabled">${label}</span>`;
-  }
-
-  return `<a class="link-button" href="${escapeAttr(url)}" target="_blank" rel="noreferrer" data-stop-open>${label}</a>`;
-}
-
-function timelineSegment(event) {
-  const progressClass = getEventProgressClass(event);
-  return `
-    <span class="timeline-segment ${event.type} ${progressClass}">
-      <strong>${eventIcon(event.type)} ${escapeHtml(event.label)}</strong>
-    </span>
-  `;
-}
-
-function getEventProgressClass(event) {
-  if (event.unknown || !event.date) return "is-unknown";
-  if (event.done || event.result) return "is-done";
+function getNextStage(apply) {
   const today = getToday();
-  const eventDate = new Date(`${event.date}T00:00:00`);
-  if (eventDate < today) return "is-overdue";
-  return "is-upcoming";
+  return apply.stages
+    .filter((stage) => stage.start_at && !stage.is_unknown_date && !stage.is_completed && !stage.result)
+    .map((stage) => ({ ...stage, dateObject: new Date(stage.start_at) }))
+    .sort((a, b) => Math.abs(a.dateObject - today) - Math.abs(b.dateObject - today))[0];
 }
 
-function getAutoStatus(app) {
-  if (app.priority === "drop") {
-    return { label: "Drop", tone: "muted" };
-  }
+function getApplyStatus(apply) {
+  if (apply.status === "DROP") return { label: "보류", tone: "muted" };
+  if (apply.status === "PASS") return { label: "합격", tone: "done" };
+  if (apply.status === "FAIL") return { label: "불합격", tone: "warn" };
+  const next = getNextStage(apply);
+  if (!next) return { label: "일정 미정", tone: "muted" };
+  return { label: stageTitle(next), tone: stageMarkerClass(next) };
+}
 
-  const today = getToday();
-  const datedEvents = app.events
-    .filter((event) => event.date && !event.unknown)
-    .map((event) => ({ ...event, dateObject: new Date(`${event.date}T00:00:00`) }))
-    .sort((a, b) => a.dateObject - b.dateObject);
-  const uncheckedPast = datedEvents.find((event) => event.dateObject < today && !event.done && !event.result);
+function isApplyDone(apply) {
+  return ["PASS", "FAIL", "DROP"].includes(apply.status)
+    || (apply.stages.length > 0 && apply.stages.every((stage) => stage.is_completed || stage.result));
+}
 
-  if (uncheckedPast) {
-    return { label: `${uncheckedPast.label} 체크 필요`, tone: "warn" };
-  }
+function getCompletionRatio(apply) {
+  if (!apply.stages.length) return 0;
+  return Math.round((apply.stages.filter((stage) => stage.is_completed || stage.result).length / apply.stages.length) * 100);
+}
 
-  const nextEvent = datedEvents.find((event) => event.dateObject >= today && !event.done && !event.result);
-  if (nextEvent) {
-    const diffDays = Math.ceil((nextEvent.dateObject - today) / 86400000);
-    return { label: `${nextEvent.label} ${diffDays === 0 ? "오늘" : `${diffDays}일`}`, tone: nextEvent.type };
-  }
+function getDday(dateTime) {
+  const diff = Math.ceil((new Date(dateTime) - getToday()) / 86400000);
+  if (diff === 0) return "D-Day";
+  return diff > 0 ? `D-${diff}` : `D+${Math.abs(diff)}`;
+}
 
-  if (datedEvents.length) {
-    return { label: "모든 일정 확인 완료", tone: "done" };
-  }
-
-  return { label: "일정 미정", tone: "muted" };
+function isUpcoming(dateTime) {
+  if (!dateTime) return false;
+  return new Date(dateTime) >= getToday();
 }
 
 function getToday() {
@@ -276,168 +582,36 @@ function getToday() {
   return today;
 }
 
-function renderCalendar() {
-  const year = state.calendarDate.getFullYear();
-  const month = state.calendarDate.getMonth();
-  els.calendarTitle.textContent = `${year}년 ${month + 1}월`;
-
-  const start = new Date(year, month, 1);
-  const firstDay = start.getDay();
-  const gridStart = new Date(year, month, 1 - firstDay);
-  const byDate = groupEventsByDate();
-  const cells = [];
-
-  for (let index = 0; index < 42; index += 1) {
-    const date = new Date(gridStart);
-    date.setDate(gridStart.getDate() + index);
-    const dateKey = toDateKey(date);
-    const events = byDate.get(dateKey) || [];
-    cells.push(`
-      <button class="day-cell ${date.getMonth() === month ? "" : "is-muted"} ${events.length ? "has-events" : ""}" type="button" data-date="${dateKey}">
-        <span class="day-number">${date.getDate()}</span>
-        ${events.slice(0, 3).map((item) => `<span class="calendar-event ${item.event.type}">${eventIcon(item.event.type)} ${escapeHtml(item.app.company)} ${escapeHtml(item.event.label)}</span>`).join("")}
-        ${events.length > 3 ? `<span class="event-meta">+${events.length - 3}</span>` : ""}
-      </button>
-    `);
-  }
-
-  els.calendarGrid.innerHTML = cells.join("");
+function formatDateTime(dateTime) {
+  return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(dateTime));
 }
 
-function groupEventsByDate() {
-  const map = new Map();
-  state.applications.forEach((app) => {
-    app.events.forEach((event) => {
-      if (!event.date || event.unknown) return;
-      const list = map.get(event.date) || [];
-      list.push({ app, event });
-      map.set(event.date, list);
-    });
-  });
-  return map;
+function formatDate(dateString) {
+  return new Intl.DateTimeFormat("ko-KR", { month: "short", day: "numeric", weekday: "short" }).format(new Date(`${dateString}T00:00:00`));
 }
 
 function toDateKey(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function eventIcon(type) {
-  return type === "go" ? "▶" : "●";
+function dateTimeToDate(dateTime) {
+  return dateTime ? dateTime.slice(0, 10) : "";
 }
 
-function openApplyDialog(app = null) {
-  const fields = els.applyForm.elements;
-  state.editingId = app?.id || null;
-  els.dialogTitle.textContent = app ? "Edit Apply" : "New Apply";
-  els.deleteApplyButton.hidden = !app;
-  fields.company.value = app?.company || "";
-  fields.role.value = app?.role || "";
-  fields.url.value = app?.url || "";
-  fields.applyUrl.value = app?.applyUrl || "";
-  fields.priority.value = app?.priority || "medium";
-  fields.notes.value = app?.notes || "";
-  renderEventRows(app?.events || createDefaultEvents());
-  els.applyDialog.showModal();
+function stageTitle(stage) {
+  return [stage.nth_type, stage.step_type, stage.state_type].filter(Boolean).join(" · ");
 }
 
-function createDefaultEvents() {
-  return defaultEventTemplates.map(([label, type]) => ({
-    id: makeId(),
-    label,
-    type,
-    date: "",
-    unknown: false,
-    done: false,
-    result: "",
-    review: "",
-  }));
+function stageMarkerClass(stage) {
+  return ["응시", "제출"].includes(stage.state_type) ? "go" : "announce";
 }
 
-function renderEventRows(events) {
-  els.eventRows.innerHTML = events.map((event) => eventRowTemplate(event)).join("");
+function priorityClass(priority) {
+  return { RED: "high", YELLOW: "medium", GREEN: "low", BLUE: "low", GRAY: "drop" }[priority] || "low";
 }
 
-function eventRowTemplate(event) {
-  return `
-    <div class="event-row" data-event-id="${event.id}">
-      <input data-field="label" value="${escapeAttr(event.label)}" aria-label="일정 이름" />
-      <select data-field="type" aria-label="일정 속성">
-        <option value="announce" ${event.type === "announce" ? "selected" : ""}>Announce</option>
-        <option value="go" ${event.type === "go" ? "selected" : ""}>GO</option>
-      </select>
-      <input data-field="date" type="date" value="${escapeAttr(event.date || "")}" ${event.unknown ? "disabled" : ""} aria-label="날짜" />
-      <label class="unknown-label"><input data-field="unknown" type="checkbox" ${event.unknown ? "checked" : ""} />미정</label>
-      <select data-field="result" aria-label="결과">
-        <option value="" ${!event.result ? "selected" : ""}>결과/체크 전</option>
-        <option value="done" ${event.result === "done" ? "selected" : ""}>다녀옴/완료</option>
-        <option value="pass" ${event.result === "pass" ? "selected" : ""}>합격</option>
-        <option value="fail" ${event.result === "fail" ? "selected" : ""}>불합격</option>
-        <option value="skip" ${event.result === "skip" ? "selected" : ""}>미참석/포기</option>
-      </select>
-      <button class="ghost-button" type="button" data-remove-event="${event.id}" aria-label="일정 삭제">삭제</button>
-      <textarea class="wide" data-field="review" rows="2" placeholder="후기 또는 메모">${escapeHtml(event.review || "")}</textarea>
-    </div>
-  `;
-}
-
-function collectEvents() {
-  return [...els.eventRows.querySelectorAll(".event-row")].map((row) => {
-    const unknown = row.querySelector('[data-field="unknown"]').checked;
-    const result = row.querySelector('[data-field="result"]').value;
-    return {
-    id: row.dataset.eventId || makeId(),
-      label: row.querySelector('[data-field="label"]').value.trim(),
-      type: row.querySelector('[data-field="type"]').value,
-      date: unknown ? "" : row.querySelector('[data-field="date"]').value,
-      unknown,
-      done: Boolean(result),
-      result,
-      review: row.querySelector('[data-field="review"]').value.trim(),
-    };
-  }).filter((event) => event.label);
-}
-
-function handleSubmit(event) {
-  event.preventDefault();
-  const form = new FormData(els.applyForm);
-  const payload = {
-    id: state.editingId || makeId(),
-    company: form.get("company").trim(),
-    role: form.get("role").trim(),
-    url: form.get("url").trim(),
-    applyUrl: form.get("applyUrl").trim(),
-    priority: form.get("priority"),
-    notes: form.get("notes").trim(),
-    events: collectEvents(),
-  };
-
-  if (state.editingId) {
-    state.applications = state.applications.map((app) => app.id === state.editingId ? payload : app);
-  } else {
-    state.applications.unshift(payload);
-  }
-
-  saveApplications();
-  els.applyDialog.close();
-  render();
-}
-
-function openDayDialog(dateKey) {
-  const events = groupEventsByDate().get(dateKey) || [];
-  els.dayDialogTitle.textContent = formatDate(dateKey);
-  els.dayDetails.innerHTML = events.length
-    ? events.map(({ app, event }) => `
-      <article class="day-item">
-        <strong>${eventIcon(event.type)} ${escapeHtml(app.company)} · ${escapeHtml(event.label)}</strong>
-        <p class="event-meta">${escapeHtml(app.role)} · ${escapeHtml(getAutoStatus(app).label)}</p>
-        ${event.review ? `<p class="review-text">${escapeHtml(event.review)}</p>` : ""}
-      </article>
-    `).join("")
-    : `<div class="empty-state">이 날짜에는 일정이 없습니다.</div>`;
-  els.dayDialog.showModal();
+function priorityFromClass(priority) {
+  return { high: "RED", medium: "YELLOW", low: "BLUE", drop: "GRAY" }[priority] || "GREEN";
 }
 
 function escapeHtml(value) {
@@ -453,133 +627,114 @@ function escapeAttr(value) {
   return escapeHtml(value);
 }
 
-els.newApplyButton.addEventListener("click", () => openApplyDialog());
-els.applyForm.addEventListener("submit", handleSubmit);
-els.closeDialogButton.addEventListener("click", () => els.applyDialog.close());
-els.cancelDialogButton.addEventListener("click", () => els.applyDialog.close());
-els.closeDayDialogButton.addEventListener("click", () => els.dayDialog.close());
-
-els.navButtons.forEach((button) => {
-  button.addEventListener("click", () => {
-    setView(button.dataset.view);
-  });
-});
-
-function setView(view) {
-  state.view = view;
-  els.navButtons.forEach((item) => {
-    const isActive = item.dataset.view === view;
-    item.classList.toggle("active", isActive);
-    if (item.hasAttribute("aria-selected")) {
-      item.setAttribute("aria-selected", String(isActive));
-    }
-  });
-  els.listView.classList.toggle("active", view === "list");
-  els.calendarView.classList.toggle("active", view === "calendar");
-  els.settingsView.classList.toggle("active", view === "settings");
+function openDayDialog(dateKey) {
+  const stages = groupStagesByDate().get(dateKey) || [];
+  els.dayDialogTitle.textContent = formatDate(dateKey);
+  els.dayDetails.innerHTML = stages.length
+    ? stages.map(({ apply, stage }) => `
+      <article class="day-item">
+        <strong>${escapeHtml(apply.company_name)} · ${escapeHtml(stageTitle(stage))}</strong>
+        <p>${escapeHtml(apply.title)} ${stage.start_at ? `· ${escapeHtml(getDday(stage.start_at))}` : ""}</p>
+      </article>
+    `).join("")
+    : `<div class="empty-state">이 날짜에는 일정이 없습니다.</div>`;
+  els.dayDialog.showModal();
 }
 
+els.navButtons.forEach((button) => {
+  button.addEventListener("click", () => setView(button.dataset.view));
+});
+
+els.newApplyButton.addEventListener("click", () => openDetail());
+els.mobileNewApplyButton.addEventListener("click", () => openDetail());
+els.backButton.addEventListener("click", () => setView(state.previousView || "dashboard"));
 els.searchInput.addEventListener("input", (event) => {
   state.query = event.target.value;
   renderList();
 });
 
 els.applyList.addEventListener("click", (event) => {
-  if (suppressCardOpen) {
-    event.preventDefault();
-    return;
-  }
-  if (event.target.closest("[data-stop-open]")) return;
   const id = event.target.closest("[data-open]")?.dataset.open;
-  if (!id) return;
-  const app = state.applications.find((item) => item.id === id);
-  if (app) openApplyDialog(app);
-});
-
-let swipeStart = null;
-let suppressCardOpen = false;
-
-els.applyList.addEventListener("pointerdown", (event) => {
-  const card = event.target.closest("[data-open]");
-  if (!card || event.target.closest("[data-stop-open]")) return;
-  swipeStart = { id: card.dataset.open, x: event.clientX, y: event.clientY };
-});
-
-els.applyList.addEventListener("pointerup", (event) => {
-  if (!swipeStart) return;
-  const dx = event.clientX - swipeStart.x;
-  const dy = Math.abs(event.clientY - swipeStart.y);
-  if (dx < -82 && dy < 48 && window.matchMedia("(max-width: 1200px)").matches) {
-    suppressCardOpen = true;
-    state.applications = state.applications.map((app) => (
-      app.id === swipeStart.id ? { ...app, priority: "drop" } : app
-    ));
-    saveApplications();
-    render();
-    window.setTimeout(() => {
-      suppressCardOpen = false;
-    }, 0);
-  }
-  swipeStart = null;
+  const apply = state.applies.find((item) => item.apply_id === id);
+  if (apply) openDetail(apply);
 });
 
 els.applyList.addEventListener("keydown", (event) => {
   if (event.key !== "Enter" && event.key !== " ") return;
   const id = event.target.closest("[data-open]")?.dataset.open;
-  if (!id) return;
+  const apply = state.applies.find((item) => item.apply_id === id);
+  if (!apply) return;
   event.preventDefault();
-  const app = state.applications.find((item) => item.id === id);
-  if (app) openApplyDialog(app);
+  openDetail(apply);
 });
 
-els.addEventButton.addEventListener("click", () => {
-  els.eventRows.insertAdjacentHTML("beforeend", eventRowTemplate({
-    id: makeId(),
-    label: "추가 일정",
-    type: "announce",
-    date: "",
-    unknown: false,
-    done: false,
+els.monthButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.calendarDate.setMonth(state.calendarDate.getMonth() + (button.dataset.month === "next" ? 1 : -1));
+    renderCalendars();
+  });
+});
+
+[els.calendarGrid, els.calendarGridMini].forEach((grid) => {
+  grid.addEventListener("click", (event) => {
+    const dateKey = event.target.closest("[data-date]")?.dataset.date;
+    if (dateKey) openDayDialog(dateKey);
+  });
+});
+
+els.priorityOptions.addEventListener("click", (event) => {
+  const priority = event.target.closest("[data-priority]")?.dataset.priority;
+  if (!priority || !state.draft) return;
+  state.draft.priority_color = priorityFromClass(priority);
+  state.draft.status = deriveStatus(state.draft);
+  renderDetail();
+});
+
+els.addStageButton.addEventListener("click", () => {
+  syncDraftFromFields();
+  state.draft.stages.push({
+    stage_id: makeId(),
+    nth_type: "커스텀",
+    step_type: "새 전형",
+    state_type: "알림",
+    memo: "",
+    start_at: "",
+    end_at: "",
+    is_unknown_date: false,
+    unknown_date_text: "",
+    is_completed: false,
     result: "",
-    review: "",
-  }));
+    sort_order: state.draft.stages.length,
+  });
+  renderDetail();
 });
 
-els.eventRows.addEventListener("click", (event) => {
-  const removeButton = event.target.closest("[data-remove-event]");
-  if (!removeButton) return;
-  removeButton.closest(".event-row").remove();
+els.stageRows.addEventListener("input", (event) => {
+  const row = event.target.closest("[data-stage-id]");
+  if (row) updateDraftStage(row);
 });
 
-els.eventRows.addEventListener("change", (event) => {
-  if (event.target.dataset.field !== "unknown") return;
-  const row = event.target.closest(".event-row");
-  const dateInput = row.querySelector('[data-field="date"]');
-  dateInput.disabled = event.target.checked;
-  if (event.target.checked) dateInput.value = "";
+els.stageRows.addEventListener("change", (event) => {
+  const row = event.target.closest("[data-stage-id]");
+  if (row) updateDraftStage(row);
 });
 
+els.stageRows.addEventListener("click", (event) => {
+  const row = event.target.closest("[data-stage-id]");
+  if (!event.target.closest("[data-remove-stage]") || !row) return;
+  state.draft.stages = state.draft.stages.filter((item) => item.stage_id !== row.dataset.stageId);
+  renderDetail();
+});
+
+els.saveDetailButton.addEventListener("click", saveDetail);
+els.cancelDetailButton.addEventListener("click", () => setView(state.previousView || "dashboard"));
 els.deleteApplyButton.addEventListener("click", () => {
   if (!state.editingId) return;
-  state.applications = state.applications.filter((app) => app.id !== state.editingId);
-  saveApplications();
-  els.applyDialog.close();
-  render();
+  state.applies = state.applies.filter((apply) => apply.apply_id !== state.editingId);
+  saveApplies();
+  state.draft = null;
+  setView("dashboard");
 });
+els.closeDayDialogButton.addEventListener("click", () => els.dayDialog.close());
 
-els.prevMonthButton.addEventListener("click", () => {
-  state.calendarDate.setMonth(state.calendarDate.getMonth() - 1);
-  renderCalendar();
-});
-
-els.nextMonthButton.addEventListener("click", () => {
-  state.calendarDate.setMonth(state.calendarDate.getMonth() + 1);
-  renderCalendar();
-});
-
-els.calendarGrid.addEventListener("click", (event) => {
-  const cell = event.target.closest("[data-date]");
-  if (cell) openDayDialog(cell.dataset.date);
-});
-
-render();
+setView("dashboard");

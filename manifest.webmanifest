@@ -1,0 +1,25 @@
+{
+  "name": "My Apply Calendar",
+  "short_name": "MAC",
+  "description": "지원 일정과 전형 단계를 관리하는 개인 대시보드",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#faf8ff",
+  "theme_color": "#0053db",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

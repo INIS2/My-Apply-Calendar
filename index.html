@@ -3,142 +3,219 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0053db" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="MAC" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <title>My Apply Calendar</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icons/icon-192.png" />
     <link rel="stylesheet" href="assets/css/style.css" />
   </head>
   <body>
-    <header class="app-header">
-      <div>
-        <p class="eyebrow">My Apply Calendar</p>
+    <header class="top-bar">
+      <button class="icon-button back-button" id="backButton" type="button" aria-label="뒤로">‹</button>
+      <button class="brand-button" data-view="dashboard" type="button" aria-label="대시보드로 이동">MAC</button>
+      <div class="top-actions">
+        <button class="icon-button" data-view="calendar" type="button" aria-label="달력">⌕</button>
+        <button class="icon-button" data-view="profile" type="button" aria-label="마이페이지">◯</button>
       </div>
-      <button class="primary-action" id="newApplyButton" type="button">+ New Apply</button>
     </header>
 
-    <main class="app-shell">
-      <section class="today-focus" aria-label="오늘의 포커스">
-        <div>
-          <span>Today</span>
-          <strong id="focusTitle">Application tracker</strong>
+    <main class="app-main">
+      <section id="dashboardView" class="screen active" aria-label="대시보드">
+        <div class="desktop-grid">
+          <div class="dashboard-main">
+            <section class="search-panel" aria-label="지원 검색">
+              <label class="search-field">
+                <span>검색</span>
+                <input id="searchInput" type="search" placeholder="회사명, 직무, 단계 검색" />
+              </label>
+            </section>
+
+            <section class="stats-grid" aria-label="지원 현황">
+              <article class="stat-card">
+                <span id="summaryTotal">0</span>
+                <p>전체 지원</p>
+              </article>
+              <article class="stat-card accent-blue">
+                <span id="summaryLive">0</span>
+                <p>진행중</p>
+              </article>
+              <article class="stat-card accent-brown">
+                <span id="summaryDone">0</span>
+                <p>완료</p>
+              </article>
+            </section>
+
+            <section class="section-card list-section" aria-label="지원 리스트">
+              <div class="section-head">
+                <div>
+                  <p class="overline">Applications</p>
+                  <h1>지원 리스트</h1>
+                </div>
+                <button class="primary-action desktop-only" id="newApplyButton" type="button">새 지원</button>
+              </div>
+              <div id="applyList" class="apply-list"></div>
+            </section>
+          </div>
+
+          <aside class="desktop-side">
+            <section class="focus-card" aria-label="다음 일정">
+              <p class="overline">Next Action</p>
+              <strong id="focusTitle">다음 일정 없음</strong>
+              <span id="focusCopy">지원 단계를 추가하면 여기에 표시됩니다.</span>
+            </section>
+
+            <section class="section-card mini-calendar" aria-label="간단 달력">
+              <div class="calendar-head compact">
+                <button class="icon-button" data-month="prev" type="button" aria-label="이전 달">‹</button>
+                <h2 id="calendarTitleMini"></h2>
+                <button class="icon-button" data-month="next" type="button" aria-label="다음 달">›</button>
+              </div>
+              <div class="calendar-weekdays" aria-hidden="true">
+                <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+              </div>
+              <div id="calendarGridMini" class="calendar-grid compact"></div>
+            </section>
+          </aside>
         </div>
-        <p id="focusCopy">Keep the next step visible.</p>
       </section>
 
-      <section class="toolbar" aria-label="보기 및 필터">
-        <div class="view-switch" role="tablist" aria-label="보기 전환">
-          <button class="view-button active" data-view="list" type="button" role="tab" aria-selected="true">리스트</button>
-          <button class="view-button" data-view="calendar" type="button" role="tab" aria-selected="false">달력</button>
-          <button class="view-button settings-tab" data-view="settings" type="button" role="tab" aria-selected="false">설정</button>
-        </div>
-        <label class="search-field">
-          <span>검색</span>
-          <input id="searchInput" type="search" placeholder="회사, 요건, 상태" />
-        </label>
+      <section id="calendarView" class="screen" aria-label="달력">
+        <section class="section-card calendar-screen">
+          <div class="calendar-head">
+            <div>
+              <p class="overline" id="calendarSubtitle">Calendar</p>
+              <h1 id="calendarTitle"></h1>
+            </div>
+            <div class="inline-actions">
+              <button class="icon-button" data-month="prev" type="button" aria-label="이전 달">‹</button>
+              <button class="icon-button" data-month="next" type="button" aria-label="다음 달">›</button>
+            </div>
+          </div>
+          <div class="calendar-weekdays" aria-hidden="true">
+            <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
+          </div>
+          <div id="calendarGrid" class="calendar-grid"></div>
+        </section>
       </section>
 
-      <section class="summary-strip" aria-label="지원 현황 요약">
-        <article>
-          <span id="summaryTotal">0</span>
-          <p>Total</p>
-        </article>
-        <article>
-          <span id="summaryLive">0</span>
-          <p>Live</p>
-        </article>
+      <section id="detailView" class="screen" aria-label="지원 상세">
+        <section class="detail-layout">
+          <div class="detail-main">
+            <section class="section-card detail-card">
+              <span class="priority-rail" id="detailPriorityRail" aria-hidden="true"></span>
+              <label>
+                <span>Company Info</span>
+                <input id="detailCompany" required placeholder="회사명" />
+              </label>
+              <label>
+                <span>공고명 / 직무</span>
+                <input id="detailRole" required placeholder="예: SW 개발 신입 채용" />
+              </label>
+            </section>
+
+            <section class="section-card">
+              <div class="section-head">
+                <div>
+                  <p class="overline">Priority</p>
+                  <h2>지원 우선순위</h2>
+                </div>
+              </div>
+              <div class="priority-options" id="priorityOptions">
+                <button data-priority="high" type="button">긴급</button>
+                <button data-priority="medium" type="button">보통</button>
+                <button data-priority="low" type="button">낮음</button>
+                <button data-priority="drop" type="button">보류</button>
+              </div>
+            </section>
+
+            <section class="section-card">
+              <label>
+                <span>지원 메모</span>
+                <textarea id="detailNotes" rows="4" placeholder="지원 동기, 준비할 것, 면접 복기 등을 기록하세요."></textarea>
+              </label>
+              <div class="url-grid">
+                <label>
+                  <span>공고 URL</span>
+                  <input id="detailUrl" type="url" placeholder="https://..." />
+                </label>
+                <label>
+                  <span>지원 URL</span>
+                  <input id="detailApplyUrl" type="url" placeholder="https://..." />
+                </label>
+              </div>
+            </section>
+          </div>
+
+          <section class="section-card stage-panel">
+            <div class="section-head">
+              <div>
+                <p class="overline">Stages</p>
+                <h2>전형 단계 관리</h2>
+              </div>
+              <button class="secondary-action" id="addStageButton" type="button">단계 추가</button>
+            </div>
+            <div id="stageRows" class="stage-list"></div>
+            <div class="detail-actions">
+              <button class="danger-button" id="deleteApplyButton" type="button">삭제</button>
+              <span></span>
+              <button class="ghost-button" id="cancelDetailButton" type="button">취소</button>
+              <button class="primary-action" id="saveDetailButton" type="button">저장</button>
+            </div>
+          </section>
+        </section>
       </section>
 
-      <section id="listView" class="view-panel active" aria-label="지원 리스트">
-        <div id="applyList" class="apply-list"></div>
-      </section>
+      <section id="profileView" class="screen" aria-label="마이페이지">
+        <section class="profile-layout">
+          <div class="profile-hero">
+            <div class="avatar" aria-hidden="true">M</div>
+            <div>
+              <h1>마이페이지</h1>
+              <p>Supabase Auth 연결 전까지는 로컬 프로필 상태로 표시됩니다.</p>
+            </div>
+          </div>
 
-      <section id="calendarView" class="view-panel" aria-label="지원 달력">
-        <div class="calendar-head">
-          <button class="icon-button" id="prevMonthButton" type="button" aria-label="이전 달">‹</button>
-          <h2 id="calendarTitle"></h2>
-          <button class="icon-button" id="nextMonthButton" type="button" aria-label="다음 달">›</button>
-        </div>
-        <div class="calendar-grid weekday-row" aria-hidden="true">
-          <span>일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span>
-        </div>
-        <div id="calendarGrid" class="calendar-grid"></div>
-      </section>
+          <section class="stats-grid">
+            <article class="stat-card">
+              <span id="profileTotal">0</span>
+              <p>전체 지원</p>
+            </article>
+            <article class="stat-card accent-blue">
+              <span id="profileLive">0</span>
+              <p>진행중</p>
+            </article>
+            <article class="stat-card accent-brown">
+              <span id="profileDone">0</span>
+              <p>완료</p>
+            </article>
+          </section>
 
-      <section id="settingsView" class="view-panel" aria-label="설정">
-        <div class="settings-panel">
-          <h2>Settings</h2>
-          <p>Supabase 연결, 알림, 표시 옵션을 여기에 붙일 수 있습니다.</p>
-        </div>
+          <section class="section-card settings-list">
+            <button type="button"><span>계정 관리</span><strong>준비중</strong></button>
+            <button type="button"><span>알림 설정</span><strong>준비중</strong></button>
+            <button type="button"><span>Supabase 연결</span><strong>다음 단계</strong></button>
+          </section>
+        </section>
       </section>
     </main>
 
-    <nav class="bottom-bar" aria-label="모바일 내비게이션">
-      <button class="bottom-nav active" data-view="list" type="button">List</button>
-      <button class="bottom-nav" data-view="calendar" type="button">Calendar</button>
-      <button class="bottom-nav" data-view="settings" type="button">Settings</button>
+    <div class="mobile-add">
+      <button class="primary-action" id="mobileNewApplyButton" type="button">＋ 새 지원 추가</button>
+    </div>
+
+    <nav class="bottom-bar" aria-label="하단 내비게이션">
+      <button class="bottom-nav active" data-view="dashboard" type="button"><span>▦</span>Dashboard</button>
+      <button class="bottom-nav" data-view="calendar" type="button"><span>□</span>Calendar</button>
+      <button class="bottom-nav" data-view="profile" type="button"><span>◯</span>Profile</button>
     </nav>
 
-    <dialog id="applyDialog" class="modal">
-      <form id="applyForm" method="dialog">
-        <div class="modal-head">
-          <div>
-            <p class="eyebrow">Application</p>
-            <h2 id="dialogTitle">New Apply</h2>
-          </div>
-          <button class="ghost-button" id="closeDialogButton" type="button">닫기</button>
-        </div>
-
-        <div class="form-grid">
-          <label>
-            회사
-            <input name="company" required placeholder="예: 한국전력공사" />
-          </label>
-          <label>
-            요건
-            <input name="role" required placeholder="예: IT / 전산 / 보안" />
-          </label>
-          <label>
-            공고 URL
-            <input name="url" type="url" placeholder="https://..." />
-          </label>
-          <label>
-            지원 URL
-            <input name="applyUrl" type="url" placeholder="https://..." />
-          </label>
-          <label>
-            중요도
-            <select name="priority">
-              <option value="high">높음</option>
-              <option value="medium" selected>보통</option>
-              <option value="low">낮음</option>
-              <option value="drop">Drop</option>
-            </select>
-          </label>
-          <label class="wide">
-            메모
-            <textarea name="notes" rows="3" placeholder="공고 특이사항, 준비할 것"></textarea>
-          </label>
-        </div>
-
-        <div class="schedule-editor">
-          <div class="section-title">
-            <h3>일정</h3>
-            <button class="secondary-action" id="addEventButton" type="button">+ 일정 추가</button>
-          </div>
-          <div id="eventRows" class="event-rows"></div>
-        </div>
-
-        <menu class="modal-actions">
-          <button class="danger-button" id="deleteApplyButton" type="button">삭제</button>
-          <span></span>
-          <button class="ghost-button" id="cancelDialogButton" type="button">취소</button>
-          <button class="primary-action" type="submit">저장</button>
-        </menu>
-      </form>
-    </dialog>
-
-    <dialog id="dayDialog" class="modal small-modal">
+    <dialog id="dayDialog" class="modal">
       <div class="modal-head">
         <div>
-          <p class="eyebrow">Calendar</p>
+          <p class="overline">Calendar</p>
           <h2 id="dayDialogTitle">일정</h2>
         </div>
         <button class="ghost-button" id="closeDayDialogButton" type="button">닫기</button>
@@ -147,5 +224,12 @@
     </dialog>
 
     <script src="assets/js/app.js"></script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("./service-worker.js");
+        });
+      }
+    </script>
   </body>
 </html>
