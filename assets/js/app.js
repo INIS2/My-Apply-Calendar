@@ -119,6 +119,7 @@ const els = {
   authPasswordInput: document.querySelector("#authPasswordInput"),
   authPasswordConfirmInput: document.querySelector("#authPasswordConfirmInput"),
   authNicknameInput: document.querySelector("#authNicknameInput"),
+  authMessage: document.querySelector("#authMessage"),
   signInButton: document.querySelector("#signInButton"),
   signUpButton: document.querySelector("#signUpButton"),
   signOutButton: document.querySelector("#signOutButton"),
@@ -261,6 +262,7 @@ async function initSupabase() {
     setConnectionState("pending", "Supabase 확인 중", "프로젝트와 세션을 확인하고 있습니다.");
     const { createClient } = await import(SUPABASE_JS_URL);
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    setAuthMessage("Supabase 연결 준비 완료", "ok");
     const { data, error } = await supabaseClient.auth.getSession();
     if (error) throw error;
     supabaseSession = data.session;
@@ -300,9 +302,49 @@ function setConnectionState(stateName, label, hint) {
   els.syncStatus.textContent = label;
 }
 
+function setAuthMessage(message, tone = "") {
+  els.authMessage.textContent = message;
+  els.authMessage.className = `form-message ${tone}`.trim();
+}
+
+function validateAuthFields({ confirmPassword = false } = {}) {
+  const email = els.authEmailInput.value.trim();
+  const password = els.authPasswordInput.value;
+  const passwordConfirm = els.authPasswordConfirmInput.value;
+
+  els.authEmailInput.setCustomValidity("");
+  els.authPasswordInput.setCustomValidity("");
+  els.authPasswordConfirmInput.setCustomValidity("");
+
+  if (!email || !els.authEmailInput.checkValidity()) {
+    els.authEmailInput.setCustomValidity("올바른 이메일 주소를 입력하세요.");
+    els.authEmailInput.reportValidity();
+    setAuthMessage("올바른 이메일 주소를 입력하세요.", "error");
+    return false;
+  }
+
+  if (password.length < 8) {
+    els.authPasswordInput.setCustomValidity("비밀번호는 8자 이상이어야 합니다.");
+    els.authPasswordInput.reportValidity();
+    setAuthMessage("비밀번호는 8자 이상이어야 합니다.", "error");
+    return false;
+  }
+
+  if (confirmPassword && password !== passwordConfirm) {
+    els.authPasswordConfirmInput.setCustomValidity("비밀번호가 일치하지 않습니다.");
+    els.authPasswordConfirmInput.reportValidity();
+    setAuthMessage("비밀번호가 일치하지 않습니다.", "error");
+    return false;
+  }
+
+  return true;
+}
+
 function showError(error) {
   console.error(error);
-  setConnectionState("error", "Supabase 오류", error?.message || "연결 중 오류가 발생했습니다");
+  const message = error?.message || "연결 중 오류가 발생했습니다";
+  setConnectionState("error", "Supabase 오류", message);
+  setAuthMessage(message, "error");
 }
 
 async function ensureProfile(nickname = "") {
@@ -981,15 +1023,22 @@ els.authForm.addEventListener("submit", (event) => {
 
 els.authPasswordConfirmInput.addEventListener("input", () => {
   els.authPasswordConfirmInput.setCustomValidity("");
+  if (els.authPasswordConfirmInput.value && els.authPasswordInput.value !== els.authPasswordConfirmInput.value) {
+    setAuthMessage("비밀번호가 아직 일치하지 않습니다.", "error");
+  } else {
+    setAuthMessage("");
+  }
 });
 
 els.signInButton.addEventListener("click", async () => {
+  if (!validateAuthFields()) return;
   if (!supabaseClient) {
-    setSyncStatus("Supabase 연결을 준비 중입니다");
+    setAuthMessage("Supabase 연결을 준비 중입니다. 잠시 후 다시 시도하세요.", "error");
     return;
   }
   try {
     setSyncStatus("로그인 중...");
+    setAuthMessage("로그인 중...");
     const { error } = await supabaseClient.auth.signInWithPassword({
       email: els.authEmailInput.value.trim(),
       password: els.authPasswordInput.value,
@@ -997,24 +1046,22 @@ els.signInButton.addEventListener("click", async () => {
     if (error) throw error;
     await ensureProfile();
     await loadRemoteApplies();
+    setAuthMessage("로그인 완료", "ok");
   } catch (error) {
     showError(error);
   }
 });
 
 els.signUpButton.addEventListener("click", async () => {
+  if (!validateAuthFields({ confirmPassword: true })) return;
   if (!supabaseClient) {
-    setSyncStatus("Supabase 연결을 준비 중입니다");
-    return;
-  }
-  if (els.authPasswordInput.value !== els.authPasswordConfirmInput.value) {
-    els.authPasswordConfirmInput.setCustomValidity("비밀번호가 일치하지 않습니다.");
-    els.authPasswordConfirmInput.reportValidity();
+    setAuthMessage("Supabase 연결을 준비 중입니다. 잠시 후 다시 시도하세요.", "error");
     return;
   }
   els.authPasswordConfirmInput.setCustomValidity("");
   try {
     setSyncStatus("가입 중...");
+    setAuthMessage("회원가입 요청 중...");
     const nickname = els.authNicknameInput.value.trim();
     const { data, error } = await supabaseClient.auth.signUp({
       email: els.authEmailInput.value.trim(),
@@ -1029,9 +1076,11 @@ els.signUpButton.addEventListener("click", async () => {
     if (data.session?.user) {
       await ensureProfile(nickname);
       await loadRemoteApplies();
+      setAuthMessage("회원가입 및 로그인 완료", "ok");
     } else {
       setSyncStatus("가입 확인 메일을 확인하세요");
       setConnectionState("pending", "이메일 확인 필요", "메일의 확인 링크를 누른 뒤 로그인하세요.");
+      setAuthMessage("가입 확인 메일을 확인하세요.", "ok");
     }
   } catch (error) {
     showError(error);

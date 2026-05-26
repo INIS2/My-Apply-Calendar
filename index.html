@@ -206,15 +206,15 @@
             <form id="authForm" class="settings-form">
               <label>
                 <span>Email</span>
-                <input id="authEmailInput" type="email" autocomplete="email" placeholder="you@example.com" />
+                <input id="authEmailInput" type="email" autocomplete="email" inputmode="email" required placeholder="you@example.com" />
               </label>
               <label>
                 <span>Password</span>
-                <input id="authPasswordInput" type="password" autocomplete="current-password" placeholder="비밀번호" />
+                <input id="authPasswordInput" type="password" autocomplete="current-password" minlength="8" required placeholder="비밀번호" />
               </label>
               <label>
                 <span>Password 확인</span>
-                <input id="authPasswordConfirmInput" type="password" autocomplete="new-password" placeholder="비밀번호 재입력" />
+                <input id="authPasswordConfirmInput" type="password" autocomplete="new-password" minlength="8" required placeholder="비밀번호 재입력" />
               </label>
               <label>
                 <span>Nickname</span>
@@ -225,6 +225,7 @@
                 <button class="secondary-action" id="signUpButton" type="button">회원가입</button>
                 <button class="ghost-button" id="signOutButton" type="button">로그아웃</button>
               </div>
+              <p class="form-message" id="authMessage" role="status" aria-live="polite"></p>
             </form>
             <button id="syncLocalButton" type="button"><span>로컬 데이터를 Supabase로 올리기</span><strong>Sync</strong></button>
           </section>
