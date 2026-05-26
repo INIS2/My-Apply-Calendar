@@ -200,12 +200,28 @@
             </article>
           </section>
 
-          <section class="section-card settings-list">
+          <section class="section-card auth-card">
             <div class="settings-row">
               <span>연결 상태</span>
               <strong id="syncStatus">로컬 모드</strong>
             </div>
+            <div class="auth-tabs" role="tablist" aria-label="인증 화면">
+              <button class="active" id="authLoginTab" type="button" data-auth-mode="login" role="tab" aria-selected="true">로그인</button>
+              <button id="authSignupTab" type="button" data-auth-mode="signup" role="tab" aria-selected="false">회원가입</button>
+            </div>
+            <div id="accountPanel" class="account-panel" hidden>
+              <div>
+                <p class="overline">Account</p>
+                <h2 id="accountTitle">로그인됨</h2>
+                <p id="accountEmail">Supabase 계정으로 연결되어 있습니다.</p>
+              </div>
+              <button class="ghost-button" id="signOutButton" type="button">로그아웃</button>
+            </div>
             <form id="authForm" class="settings-form">
+              <div class="auth-copy">
+                <h2 id="authTitle">로그인</h2>
+                <p id="authIntro">가입한 이메일과 비밀번호로 DB 데이터를 불러옵니다.</p>
+              </div>
               <label>
                 <span>Email</span>
                 <input id="authEmailInput" type="email" autocomplete="email" inputmode="email" required placeholder="you@example.com" />
@@ -214,18 +230,17 @@
                 <span>Password</span>
                 <input id="authPasswordInput" type="password" autocomplete="current-password" minlength="8" required placeholder="비밀번호" />
               </label>
-              <label>
+              <label id="authPasswordConfirmField">
                 <span>Password 확인</span>
                 <input id="authPasswordConfirmInput" type="password" autocomplete="new-password" minlength="8" required placeholder="비밀번호 재입력" />
               </label>
-              <label>
+              <label id="authNicknameField">
                 <span>Nickname</span>
                 <input id="authNicknameInput" placeholder="닉네임" />
               </label>
               <div class="form-actions">
                 <button class="primary-action" id="signInButton" type="button">로그인</button>
-                <button class="secondary-action" id="signUpButton" type="button">회원가입</button>
-                <button class="ghost-button" id="signOutButton" type="button">로그아웃</button>
+                <button class="primary-action" id="signUpButton" type="button" hidden>회원가입</button>
               </div>
               <p class="form-message" id="authMessage" role="status" aria-live="polite"></p>
             </form>

@@ -66,6 +66,7 @@ const state = {
   applies: loadApplies(),
   view: "dashboard",
   previousView: "dashboard",
+  authMode: "login",
   query: "",
   editingId: null,
   draft: null,
@@ -114,10 +115,18 @@ const els = {
   connectionDot: document.querySelector("#connectionDot"),
   connectionLabel: document.querySelector("#connectionLabel"),
   connectionHint: document.querySelector("#connectionHint"),
+  authTabs: document.querySelectorAll("[data-auth-mode]"),
+  accountPanel: document.querySelector("#accountPanel"),
+  accountTitle: document.querySelector("#accountTitle"),
+  accountEmail: document.querySelector("#accountEmail"),
   authForm: document.querySelector("#authForm"),
+  authTitle: document.querySelector("#authTitle"),
+  authIntro: document.querySelector("#authIntro"),
   authEmailInput: document.querySelector("#authEmailInput"),
   authPasswordInput: document.querySelector("#authPasswordInput"),
+  authPasswordConfirmField: document.querySelector("#authPasswordConfirmField"),
   authPasswordConfirmInput: document.querySelector("#authPasswordConfirmInput"),
+  authNicknameField: document.querySelector("#authNicknameField"),
   authNicknameInput: document.querySelector("#authNicknameInput"),
   authMessage: document.querySelector("#authMessage"),
   signInButton: document.querySelector("#signInButton"),
@@ -257,41 +266,85 @@ function isRemoteReady() {
   return Boolean(supabaseClient && supabaseSession?.user);
 }
 
+function setAuthMode(mode) {
+  state.authMode = mode;
+  const isSignup = mode === "signup";
+  els.authTabs.forEach((button) => {
+    const active = button.dataset.authMode === mode;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-selected", String(active));
+  });
+  els.authTitle.textContent = isSignup ? "회원가입" : "로그인";
+  els.authIntro.textContent = isSignup
+    ? "이메일 인증 후 Supabase에 지원 데이터를 저장할 수 있습니다."
+    : "가입한 이메일과 비밀번호로 DB 데이터를 불러옵니다.";
+  els.authPasswordInput.autocomplete = isSignup ? "new-password" : "current-password";
+  els.authPasswordConfirmField.hidden = !isSignup;
+  els.authNicknameField.hidden = !isSignup;
+  els.signInButton.hidden = isSignup;
+  els.signUpButton.hidden = !isSignup;
+  setAuthMessage("");
+}
+
+function renderAuthState() {
+  const signedIn = Boolean(supabaseSession?.user);
+  els.authForm.hidden = signedIn;
+  els.accountPanel.hidden = !signedIn;
+  els.syncLocalButton.hidden = !signedIn;
+  els.authTabs.forEach((button) => {
+    button.hidden = signedIn;
+  });
+
+  if (signedIn) {
+    const email = supabaseSession.user.email || "Supabase user";
+    const nickname = supabaseProfile?.nickname || email.split("@")[0];
+    els.accountTitle.textContent = `${nickname} 계정`;
+    els.accountEmail.textContent = email;
+    return;
+  }
+
+  setAuthMode(state.authMode);
+}
+
 async function initSupabase() {
   try {
-    setConnectionState("pending", "Supabase 확인 중", "프로젝트와 세션을 확인하고 있습니다.");
+    setConnectionState("pending", "Supabase 확인 중", "로그인 세션을 확인하고 있습니다.");
     const { createClient } = await import(SUPABASE_JS_URL);
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-    setAuthMessage("Supabase 연결 준비 완료", "ok");
     const { data, error } = await supabaseClient.auth.getSession();
     if (error) throw error;
     supabaseSession = data.session;
+
     supabaseClient.auth.onAuthStateChange((event, session) => {
       supabaseSession = session;
       if (event === "INITIAL_SESSION") return;
       setTimeout(() => {
         if (session?.user) {
           ensureProfile().then(loadRemoteApplies).catch(showError);
-      } else {
-        supabaseProfile = null;
-        setConnectionState("pending", "Supabase 연결됨", "로그아웃 상태입니다. 로컬 캐시 데이터가 표시됩니다.");
-        render();
-      }
+        } else {
+          supabaseProfile = null;
+          setConnectionState("local", "로그인 필요", "로그아웃 상태입니다. 로컬 캐시 데이터가 표시됩니다.");
+          renderAuthState();
+          render();
+        }
       }, 0);
     });
+
     if (supabaseSession?.user) {
       await ensureProfile();
       await loadRemoteApplies();
     } else {
-      setConnectionState("pending", "Supabase 연결됨", "마이페이지에서 로그인하면 DB 데이터를 불러옵니다.");
+      setConnectionState("local", "로그인 필요", "로그인 전에는 기기 안의 로컬 데이터만 표시됩니다.");
+      renderAuthState();
     }
   } catch (error) {
     supabaseClient = null;
     supabaseSession = null;
+    supabaseProfile = null;
     showError(error);
+    renderAuthState();
   }
 }
-
 function setSyncStatus(message) {
   els.syncStatus.textContent = message;
 }
@@ -340,19 +393,17 @@ function validateAuthFields({ confirmPassword = false } = {}) {
 
   return true;
 }
-
 function showError(error) {
   console.warn("Handled app error", error);
-  const message = error?.message || "연결 중 오류가 발생했습니다";
+  const message = error?.message || "연결 중 오류가 발생했습니다.";
   if (error?.code === "42501") {
-    setConnectionState("error", "DB 권한 설정 필요", "Supabase SQL Editor에서 GRANT 권한 SQL을 실행해야 합니다.");
-    setAuthMessage("DB 권한 설정이 필요합니다. GRANT SQL을 실행해 주세요.", "error");
+    setConnectionState("error", "DB 권한 설정 필요", "Supabase 테이블 권한을 확인해야 합니다.");
+    setAuthMessage("DB 권한 설정이 필요합니다. Supabase 권한을 확인하세요.", "error");
     return;
   }
   setConnectionState("error", "Supabase 오류", message);
   setAuthMessage(message, "error");
 }
-
 async function ensureProfile(nickname = "") {
   if (!isRemoteReady()) return;
   const user = supabaseSession.user;
@@ -369,6 +420,7 @@ async function ensureProfile(nickname = "") {
   if (error) throw error;
   supabaseProfile = data;
   setConnectionState("remote", "Supabase 동기화", `${supabaseProfile.nickname} 계정으로 연결되었습니다.`);
+  renderAuthState();
 }
 
 async function loadRemoteApplies() {
@@ -405,6 +457,7 @@ async function loadRemoteApplies() {
   })));
   saveApplies();
   setConnectionState("remote", "Supabase 동기화됨", `${state.applies.length}개 지원 항목을 DB에서 불러왔습니다.`);
+  renderAuthState();
   render();
 }
 
@@ -1022,8 +1075,16 @@ els.deleteApplyButton.addEventListener("click", () => {
 });
 els.closeDayDialogButton.addEventListener("click", () => els.dayDialog.close());
 
+els.authTabs.forEach((button) => {
+  button.addEventListener("click", () => setAuthMode(button.dataset.authMode));
+});
+
 els.authForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  if (state.authMode === "signup") {
+    els.signUpButton.click();
+    return;
+  }
   els.signInButton.click();
 });
 
@@ -1043,8 +1104,8 @@ els.signInButton.addEventListener("click", async () => {
     return;
   }
   try {
-    setSyncStatus("로그인 중...");
-    setAuthMessage("로그인 중...");
+    setSyncStatus("로그인 중");
+    setAuthMessage("로그인 중입니다.");
     const { error } = await supabaseClient.auth.signInWithPassword({
       email: els.authEmailInput.value.trim(),
       password: els.authPasswordInput.value,
@@ -1052,7 +1113,7 @@ els.signInButton.addEventListener("click", async () => {
     if (error) throw error;
     await ensureProfile();
     await loadRemoteApplies();
-    setAuthMessage("로그인 완료", "ok");
+    setAuthMessage("로그인되었습니다.", "ok");
   } catch (error) {
     showError(error);
   }
@@ -1064,10 +1125,9 @@ els.signUpButton.addEventListener("click", async () => {
     setAuthMessage("Supabase 연결을 준비 중입니다. 잠시 후 다시 시도하세요.", "error");
     return;
   }
-  els.authPasswordConfirmInput.setCustomValidity("");
   try {
-    setSyncStatus("가입 중...");
-    setAuthMessage("회원가입 요청 중...");
+    setSyncStatus("회원가입 중");
+    setAuthMessage("회원가입을 요청하고 있습니다.");
     const nickname = els.authNicknameInput.value.trim();
     const { data, error } = await supabaseClient.auth.signUp({
       email: els.authEmailInput.value.trim(),
@@ -1082,11 +1142,12 @@ els.signUpButton.addEventListener("click", async () => {
     if (data.session?.user) {
       await ensureProfile(nickname);
       await loadRemoteApplies();
-      setAuthMessage("회원가입 및 로그인 완료", "ok");
+      setAuthMessage("회원가입과 로그인이 완료되었습니다.", "ok");
     } else {
-      setSyncStatus("가입 확인 메일을 확인하세요");
-      setConnectionState("pending", "이메일 확인 필요", "메일의 확인 링크를 누른 뒤 로그인하세요.");
-      setAuthMessage("가입 확인 메일을 확인하세요.", "ok");
+      setSyncStatus("메일 확인 필요");
+      setConnectionState("local", "메일 확인 필요", "인증 메일의 링크를 누른 뒤 로그인하세요.");
+      setAuthMode("login");
+      setAuthMessage("인증 메일을 확인한 뒤 로그인하세요.", "ok");
     }
   } catch (error) {
     showError(error);
@@ -1098,10 +1159,10 @@ els.signOutButton.addEventListener("click", async () => {
   await supabaseClient.auth.signOut();
   supabaseSession = null;
   supabaseProfile = null;
-  setConnectionState("pending", "Supabase 연결됨", "로그아웃 상태입니다. 로컬 캐시 데이터가 표시됩니다.");
+  setConnectionState("local", "로그인 필요", "로그아웃되었습니다. 로컬 캐시 데이터가 표시됩니다.");
+  renderAuthState();
   render();
 });
-
 els.syncLocalButton.addEventListener("click", async () => {
   if (!isRemoteReady()) {
     setSyncStatus("로그인 후 동기화할 수 있습니다");
