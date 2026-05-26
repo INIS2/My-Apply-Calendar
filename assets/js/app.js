@@ -111,6 +111,9 @@ const els = {
   dayDetails: document.querySelector("#dayDetails"),
   closeDayDialogButton: document.querySelector("#closeDayDialogButton"),
   syncStatus: document.querySelector("#syncStatus"),
+  connectionDot: document.querySelector("#connectionDot"),
+  connectionLabel: document.querySelector("#connectionLabel"),
+  connectionHint: document.querySelector("#connectionHint"),
   authForm: document.querySelector("#authForm"),
   authEmailInput: document.querySelector("#authEmailInput"),
   authPasswordInput: document.querySelector("#authPasswordInput"),
@@ -250,6 +253,7 @@ function isRemoteReady() {
 
 async function initSupabase() {
   try {
+    setConnectionState("pending", "Supabase 확인 중", "프로젝트와 세션을 확인하고 있습니다.");
     const { createClient } = await import(SUPABASE_JS_URL);
     supabaseClient = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
     const { data, error } = await supabaseClient.auth.getSession();
@@ -258,25 +262,24 @@ async function initSupabase() {
     supabaseClient.auth.onAuthStateChange((event, session) => {
       supabaseSession = session;
       setTimeout(() => {
-        if (session?.user) {
-          ensureProfile().then(loadRemoteApplies).catch(showError);
-        } else {
-          supabaseProfile = null;
-          setSyncStatus("로그아웃됨");
-          render();
-        }
+      if (session?.user) {
+        ensureProfile().then(loadRemoteApplies).catch(showError);
+      } else {
+        supabaseProfile = null;
+        setConnectionState("pending", "Supabase 연결됨", "로그아웃 상태입니다. 로컬 캐시 데이터가 표시됩니다.");
+        render();
+      }
       }, 0);
     });
     if (supabaseSession?.user) {
       await ensureProfile();
       await loadRemoteApplies();
     } else {
-      setSyncStatus("연결됨 · 로그인 필요");
+      setConnectionState("pending", "Supabase 연결됨", "마이페이지에서 로그인하면 DB 데이터를 불러옵니다.");
     }
   } catch (error) {
     supabaseClient = null;
     supabaseSession = null;
-    setSyncStatus("연결 실패");
     showError(error);
   }
 }
@@ -285,9 +288,16 @@ function setSyncStatus(message) {
   els.syncStatus.textContent = message;
 }
 
+function setConnectionState(stateName, label, hint) {
+  els.connectionDot.className = `connection-dot ${stateName}`;
+  els.connectionLabel.textContent = label;
+  els.connectionHint.textContent = hint;
+  els.syncStatus.textContent = label;
+}
+
 function showError(error) {
   console.error(error);
-  setSyncStatus(error?.message || "오류가 발생했습니다");
+  setConnectionState("error", "Supabase 오류", error?.message || "연결 중 오류가 발생했습니다");
 }
 
 async function ensureProfile(nickname = "") {
@@ -305,12 +315,12 @@ async function ensureProfile(nickname = "") {
     .single();
   if (error) throw error;
   supabaseProfile = data;
-  setSyncStatus(`${supabaseProfile.nickname} · Supabase 동기화`);
+  setConnectionState("remote", "Supabase 동기화", `${supabaseProfile.nickname} 계정으로 연결되었습니다.`);
 }
 
 async function loadRemoteApplies() {
   if (!isRemoteReady()) return;
-  setSyncStatus("불러오는 중...");
+  setConnectionState("pending", "Supabase 동기화 중", "DB에서 지원 데이터를 불러오고 있습니다.");
   const { data: applies, error: appliesError } = await supabaseClient
     .from("applies")
     .select("*")
@@ -341,7 +351,7 @@ async function loadRemoteApplies() {
     stages: stagesByApply.get(apply.apply_id) || [],
   })));
   saveApplies();
-  setSyncStatus(`${supabaseProfile?.nickname || "Supabase"} · 동기화됨`);
+  setConnectionState("remote", "Supabase 동기화됨", `${state.applies.length}개 지원 항목을 DB에서 불러왔습니다.`);
   render();
 }
 
@@ -1003,6 +1013,7 @@ els.signUpButton.addEventListener("click", async () => {
       await loadRemoteApplies();
     } else {
       setSyncStatus("가입 확인 메일을 확인하세요");
+      setConnectionState("pending", "이메일 확인 필요", "메일의 확인 링크를 누른 뒤 로그인하세요.");
     }
   } catch (error) {
     showError(error);
@@ -1014,7 +1025,7 @@ els.signOutButton.addEventListener("click", async () => {
   await supabaseClient.auth.signOut();
   supabaseSession = null;
   supabaseProfile = null;
-  setSyncStatus("로그아웃됨");
+  setConnectionState("pending", "Supabase 연결됨", "로그아웃 상태입니다. 로컬 캐시 데이터가 표시됩니다.");
   render();
 });
 

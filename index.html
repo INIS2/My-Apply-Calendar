@@ -27,6 +27,11 @@
         <div class="desktop-grid">
           <div class="dashboard-main">
             <section class="search-panel" aria-label="지원 검색">
+              <div class="connection-strip" aria-live="polite">
+                <span id="connectionDot" class="connection-dot local"></span>
+                <strong id="connectionLabel">로컬 모드</strong>
+                <small id="connectionHint">로그인 전에는 기기 안의 임시 데이터만 표시됩니다.</small>
+              </div>
               <label class="search-field">
                 <span>검색</span>
                 <input id="searchInput" type="search" placeholder="회사명, 직무, 단계 검색" />

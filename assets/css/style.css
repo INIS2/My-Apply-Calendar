@@ -270,6 +270,46 @@ textarea:focus {
   grid-template-columns: 1fr;
 }
 
+.connection-strip {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.connection-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--subtle);
+}
+
+.connection-dot.remote {
+  background: var(--success);
+}
+
+.connection-dot.pending {
+  background: var(--tertiary);
+}
+
+.connection-dot.error {
+  background: var(--danger);
+}
+
+.connection-strip strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.connection-strip small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 .search-field input {
   min-height: 46px;
   background: var(--surface-soft);
